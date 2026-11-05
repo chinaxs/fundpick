@@ -9,6 +9,8 @@ import {
 } from '@project/shared'
 
 import { fundApi } from '@/api'
+import { csvFilename, exportCsv } from '@/utils/export'
+import { ElMessage } from 'element-plus'
 
 const loading = ref(false)
 const rows = ref<FundListItem[]>([])
@@ -78,6 +80,21 @@ function fmtPct(value: number | null | undefined): string {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
+function handleExport() {
+  exportCsv(csvFilename('funds'), rows.value, [
+    { header: '代码', value: (f) => f.code },
+    { header: '基金名称', value: (f) => f.name },
+    { header: '类型', value: (f) => typeLabel(f.type) },
+    { header: '单位净值', value: (f) => f.latest_nav },
+    { header: '区间收益率(%)', value: (f) => f.return_rate },
+    { header: '最大回撤(%)', value: (f) => f.max_drawdown },
+    { header: '公司', value: (f) => f.company_name },
+    { header: '经理', value: (f) => f.manager_name },
+    { header: '最新净值日期', value: (f) => f.latest_nav_date },
+  ])
+  ElMessage.success(`已导出当前页 ${rows.value.length} 条`)
+}
+
 onMounted(() => {
   fetchList()
   fetchStatus()
@@ -88,7 +105,12 @@ onMounted(() => {
   <div class="page">
     <div class="page__header">
       <h2 class="page__title">基金管理</h2>
-      <el-tag type="info" effect="plain">数据源：AkShare（仅供开发验证）</el-tag>
+      <div class="header-actions">
+        <el-tag type="info" effect="plain">数据源：AkShare（仅供开发验证）</el-tag>
+        <el-button :disabled="!rows.length" @click="handleExport">
+          <el-icon><Download /></el-icon>导出 CSV
+        </el-button>
+      </div>
     </div>
 
     <!-- 同步状态 -->
@@ -201,6 +223,12 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .stat {
   margin-bottom: 16px;
 

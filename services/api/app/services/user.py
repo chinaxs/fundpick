@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
@@ -66,3 +68,12 @@ class UserService:
         user = await self.get_or_404(user_id)
         await self.users.delete(user, soft=True)
         await self.session.commit()
+
+    async def delete_many(self, ids: list[int], *, exclude_id: int | None = None) -> int:
+        """批量软删除。保护当前操作者自己，防止超管把后台锁死。"""
+        targets = [i for i in ids if i != exclude_id]
+        if not targets:
+            return 0
+        affected = await self.users.update_many(targets, deleted_at=datetime.now())
+        await self.session.commit()
+        return affected

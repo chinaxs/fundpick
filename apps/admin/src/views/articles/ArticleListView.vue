@@ -12,13 +12,16 @@ import {
 } from '@project/shared'
 
 import { articleApi } from '@/api'
+import { csvFilename, exportCsv } from '@/utils/export'
 
-/** 列表页只负责检索与轻操作；新建/编辑跳独立页，发布/撤回/删除就地完成 */
+/** 列表页负责检索、批量操作与导出；新建/编辑跳独立页 */
 const router = useRouter()
 
 const loading = ref(false)
 const rows = ref<ArticleListItem[]>([])
 const total = ref(0)
+const selected = ref<ArticleListItem[]>([])
+const batchSubmitting = ref(false)
 const query = reactive({
   page: 1,
   page_size: DEFAULT_PAGE_SIZE,
@@ -95,6 +98,73 @@ async function handleDelete(row: ArticleListItem) {
   await fetchList()
 }
 
+/** ---------- 批量操作 ---------- */
+
+function selectedIds(): number[] {
+  return selected.value.map((a) => a.id)
+}
+
+async function runBatch(action: () => Promise<{ affected: number }>, label: string) {
+  batchSubmitting.value = true
+  try {
+    const { affected } = await action()
+    ElMessage.success(`已${label} ${affected} 篇`)
+    selected.value = []
+    await fetchList()
+  } finally {
+    batchSubmitting.value = false
+  }
+}
+
+async function handleBatchPublish() {
+  const ids = selectedIds()
+  const confirmed = await ElMessageBox.confirm(
+    `确定发布选中的 ${ids.length} 篇文章吗？`,
+    '批量发布',
+    {
+      type: 'warning',
+    },
+  ).catch(() => false)
+  if (!confirmed) return
+  await runBatch(() => articleApi.batchStatus(ids, 'published'), '发布')
+}
+
+async function handleBatchWithdraw() {
+  const ids = selectedIds()
+  const confirmed = await ElMessageBox.confirm(
+    `确定撤回选中的 ${ids.length} 篇文章吗？`,
+    '批量撤回',
+    {
+      type: 'warning',
+    },
+  ).catch(() => false)
+  if (!confirmed) return
+  await runBatch(() => articleApi.batchStatus(ids, 'draft'), '撤回')
+}
+
+async function handleBatchDelete() {
+  const ids = selectedIds()
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除选中的 ${ids.length} 篇文章吗？删除后不可恢复。`,
+    '批量删除',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+  ).catch(() => false)
+  if (!confirmed) return
+  await runBatch(() => articleApi.batchRemove(ids), '删除')
+}
+
+function handleExport() {
+  exportCsv(csvFilename('articles'), rows.value, [
+    { header: 'ID', value: (a) => a.id },
+    { header: '标题', value: (a) => a.title },
+    { header: 'Slug', value: (a) => a.slug },
+    { header: '状态', value: (a) => ARTICLE_STATUS_MAP[a.status]?.label ?? a.status },
+    { header: '浏览量', value: (a) => a.view_count },
+    { header: '发布时间', value: (a) => formatDateTime(a.published_at) },
+  ])
+  ElMessage.success(`已导出当前页 ${rows.value.length} 条`)
+}
+
 onMounted(fetchList)
 </script>
 
@@ -102,9 +172,41 @@ onMounted(fetchList)
   <div class="page">
     <div class="page__header">
       <h2 class="page__title">文章管理</h2>
-      <el-button type="primary" @click="router.push({ name: 'article-create' })">
-        <el-icon><Plus /></el-icon>新建文章
-      </el-button>
+      <div class="header-actions">
+        <el-button :disabled="!rows.length" @click="handleExport">
+          <el-icon><Download /></el-icon>导出 CSV
+        </el-button>
+        <el-button
+          type="success"
+          plain
+          :disabled="!selected.length"
+          :loading="batchSubmitting"
+          @click="handleBatchPublish"
+        >
+          批量发布{{ selected.length ? `（${selected.length}）` : '' }}
+        </el-button>
+        <el-button
+          type="warning"
+          plain
+          :disabled="!selected.length"
+          :loading="batchSubmitting"
+          @click="handleBatchWithdraw"
+        >
+          批量撤回
+        </el-button>
+        <el-button
+          type="danger"
+          plain
+          :disabled="!selected.length"
+          :loading="batchSubmitting"
+          @click="handleBatchDelete"
+        >
+          批量删除
+        </el-button>
+        <el-button type="primary" @click="router.push({ name: 'article-create' })">
+          <el-icon><Plus /></el-icon>新建文章
+        </el-button>
+      </div>
     </div>
 
     <div class="card">
@@ -135,7 +237,14 @@ onMounted(fetchList)
         <el-button @click="resetQuery">重置</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="rows" stripe border>
+      <el-table
+        v-loading="loading"
+        :data="rows"
+        stripe
+        border
+        @selection-change="(vals: ArticleListItem[]) => (selected = vals)"
+      >
+        <el-table-column type="selection" width="44" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
         <el-table-column prop="slug" label="Slug" min-width="160" show-overflow-tooltip />
@@ -188,3 +297,11 @@ onMounted(fetchList)
     </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+</style>

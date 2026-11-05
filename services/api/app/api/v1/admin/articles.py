@@ -1,14 +1,50 @@
 """后台 - 文章管理接口。"""
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 
 from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.models.article import ArticleStatus
 from app.schemas.article import ArticleCreate, ArticleListItem, ArticleRead, ArticleUpdate
-from app.schemas.common import ApiResponse, IdResponse, PageParams, PageResult
+from app.schemas.common import (
+    ApiResponse,
+    BatchIdsRequest,
+    BatchResult,
+    IdResponse,
+    PageParams,
+    PageResult,
+)
 from app.services.article import ArticleService
 
 router = APIRouter(prefix="/articles", tags=["后台 · 内容"])
+
+
+class BatchStatusRequest(BatchIdsRequest):
+    """批量设置文章状态。"""
+
+    status: ArticleStatus
+
+
+@router.post(
+    "/batch-delete", summary="批量删除文章（软删除）", response_model=ApiResponse[BatchResult]
+)
+async def batch_delete_articles(
+    payload: BatchIdsRequest, session: SessionDep, request_id: RequestIdDep, _: StaffUser
+) -> ApiResponse[BatchResult]:
+    affected = await ArticleService(session).delete_many(payload.ids)
+    return ApiResponse(data=BatchResult(affected=affected), request_id=request_id)
+
+
+@router.post(
+    "/batch-status", summary="批量发布 / 撤回文章", response_model=ApiResponse[BatchResult]
+)
+async def batch_update_status(
+    payload: BatchStatusRequest, session: SessionDep, request_id: RequestIdDep, _: StaffUser
+) -> ApiResponse[BatchResult]:
+    affected = await ArticleService(session).update_status_many(payload.ids, payload.status)
+    return ApiResponse(data=BatchResult(affected=affected), request_id=request_id)
+
+
 
 
 @router.get("", summary="文章列表", response_model=ApiResponse[PageResult[ArticleListItem]])

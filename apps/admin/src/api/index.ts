@@ -42,6 +42,8 @@ export const userApi = {
   update: (id: number, payload: UserUpdatePayload) =>
     api.patch<User>(`${ADMIN}/users/${id}`, payload),
   remove: (id: number) => api.delete<{ id: number }>(`${ADMIN}/users/${id}`),
+  batchRemove: (ids: number[]) =>
+    api.post<{ affected: number }>(`${ADMIN}/users/batch-delete`, { ids }),
 }
 
 export const articleApi = {
@@ -51,6 +53,10 @@ export const articleApi = {
   update: (id: number, payload: ArticleUpdatePayload) =>
     api.patch<Article>(`${ADMIN}/articles/${id}`, payload),
   remove: (id: number) => api.delete<{ id: number }>(`${ADMIN}/articles/${id}`),
+  batchRemove: (ids: number[]) =>
+    api.post<{ affected: number }>(`${ADMIN}/articles/batch-delete`, { ids }),
+  batchStatus: (ids: number[], status: ArticleListItem['status']) =>
+    api.post<{ affected: number }>(`${ADMIN}/articles/batch-status`, { ids, status }),
 }
 
 export const fundApi = {

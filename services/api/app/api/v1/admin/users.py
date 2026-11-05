@@ -3,11 +3,32 @@
 from fastapi import APIRouter, Query
 
 from app.api.deps import RequestIdDep, SessionDep, SuperUser
-from app.schemas.common import ApiResponse, IdResponse, PageParams, PageResult
+from app.schemas.common import (
+    ApiResponse,
+    BatchIdsRequest,
+    BatchResult,
+    IdResponse,
+    PageParams,
+    PageResult,
+)
 from app.schemas.user import UserCreate, UserQuery, UserRead, UserUpdate
 from app.services.user import UserService
 
 router = APIRouter(prefix="/users", tags=["后台 · 用户"])
+
+
+@router.post(
+    "/batch-delete", summary="批量删除用户（软删除）", response_model=ApiResponse[BatchResult]
+)
+async def batch_delete_users(
+    payload: BatchIdsRequest,
+    session: SessionDep,
+    request_id: RequestIdDep,
+    user: SuperUser,
+) -> ApiResponse[BatchResult]:
+    # 操作者本人被排除，防止超管把自己删了把后台锁死
+    affected = await UserService(session).delete_many(payload.ids, exclude_id=user.id)
+    return ApiResponse(data=BatchResult(affected=affected), request_id=request_id)
 
 
 @router.get("", summary="用户列表", response_model=ApiResponse[PageResult[UserRead]])

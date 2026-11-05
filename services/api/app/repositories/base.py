@@ -30,6 +30,27 @@ class BaseRepository(Generic[ModelT]):
         stmt = self._base_stmt().where(self.model.id == pk)  # type: ignore[attr-defined]
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def get_many(self, ids: list[int]) -> list[ModelT]:
+        """按 ID 批量取（软删除自动过滤），返回实际存在的行。"""
+        if not ids:
+            return []
+        stmt = self._base_stmt().where(self.model.id.in_(ids))  # type: ignore[attr-defined]
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def update_many(self, ids: list[int], **values: Any) -> int:
+        """按 ID 批量更新，返回受影响行数（软删除行不参与）。"""
+        if not ids or not values:
+            return 0
+        stmt = (
+            self.model.__table__.update()
+            .where(self.model.id.in_(ids))  # type: ignore[attr-defined]
+            .values(**values)
+        )
+        if hasattr(self.model, "deleted_at"):
+            stmt = stmt.where(self.model.deleted_at.is_(None))
+        result = await self.session.execute(stmt)
+        return int(result.rowcount or 0)
+
     async def get_by(self, **filters: Any) -> ModelT | None:
         stmt = self._base_stmt()
         for field, value in filters.items():

@@ -134,3 +134,75 @@ async def test_audit_log_records_write_operation(
 async def test_audit_logs_requires_superuser(client: AsyncClient, staff_account: dict) -> None:
     resp = await client.get("/api/v1/admin/audit-logs", headers=staff_account["headers"])
     assert resp.status_code == 403
+
+
+async def test_user_batch_delete_protects_self(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    """批量删除不能删掉操作者本人。"""
+    import sqlalchemy as sa
+
+    async with async_session_factory() as session:
+        admin_id = (
+            (await session.execute(sa.select(User.id).where(User.username == "admin")))
+            .scalar_one()
+        )
+
+    resp = await client.post(
+        "/api/v1/admin/users/batch-delete",
+        json={"ids": [admin_id]},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["affected"] == 0
+
+    async with async_session_factory() as session:
+        admin = await session.get(User, admin_id)
+        assert admin is not None and admin.deleted_at is None
+
+
+async def test_article_batch_status_and_delete(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    """批量发布 / 撤回 / 删除文章，affected 数与实际行数一致。"""
+    ids = []
+    for i in range(2):
+        resp = await client.post(
+            "/api/v1/admin/articles",
+            json={"title": f"批量测试 {uuid.uuid4().hex[:6]} {i}", "content": "x"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        ids.append(resp.json()["data"]["id"])
+
+    try:
+        published = await client.post(
+            "/api/v1/admin/articles/batch-status",
+            json={"ids": ids, "status": "published"},
+            headers=admin_headers,
+        )
+        assert published.status_code == 200
+        assert published.json()["data"]["affected"] == 2
+
+        withdrawn = await client.post(
+            "/api/v1/admin/articles/batch-status",
+            json={"ids": ids, "status": "draft"},
+            headers=admin_headers,
+        )
+        assert withdrawn.json()["data"]["affected"] == 2
+    finally:
+        removed = await client.post(
+            "/api/v1/admin/articles/batch-delete",
+            json={"ids": ids},
+            headers=admin_headers,
+        )
+        assert removed.status_code == 200
+        assert removed.json()["data"]["affected"] == 2
+
+
+async def test_batch_requires_staff(client: AsyncClient) -> None:
+    """匿名调用批量接口应 401，防越权。"""
+    resp = await client.post(
+        "/api/v1/admin/articles/batch-delete", json={"ids": [1]}
+    )
+    assert resp.status_code == 401

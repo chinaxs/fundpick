@@ -84,6 +84,21 @@ class ArticleService:
         await self.articles.delete(article, soft=True)
         await self.session.commit()
 
+    async def delete_many(self, ids: list[int]) -> int:
+        """批量软删除，返回实际删除数。"""
+        affected = await self.articles.update_many(ids, deleted_at=datetime.now())
+        await self.session.commit()
+        return affected
+
+    async def update_status_many(self, ids: list[int], status: ArticleStatus) -> int:
+        """批量发布 / 撤回。首次发布补 published_at。"""
+        values: dict[str, object] = {"status": status}
+        if status == ArticleStatus.PUBLISHED:
+            values["published_at"] = datetime.now()
+        affected = await self.articles.update_many(ids, **values)
+        await self.session.commit()
+        return affected
+
     async def list_published(
         self, params: PageParams, keyword: str | None = None
     ) -> PageResult[Article]:

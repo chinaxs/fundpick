@@ -4,10 +4,16 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, formatDateTime, type User } from '@project/shared'
 
 import { userApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { csvFilename, exportCsv } from '@/utils/export'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const rows = ref<User[]>([])
 const total = ref(0)
+const selected = ref<User[]>([])
+const batchSubmitting = ref(false)
 const query = reactive({
   page: 1,
   page_size: DEFAULT_PAGE_SIZE,
@@ -141,6 +147,44 @@ async function handleDelete(row: User) {
   await fetchList()
 }
 
+async function handleBatchDelete() {
+  const ids = selected.value.map((u) => u.id)
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除选中的 ${ids.length} 个用户吗？当前登录账号会被自动跳过。`,
+    '批量删除',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+  ).catch(() => false)
+  if (!confirmed) return
+
+  batchSubmitting.value = true
+  try {
+    const { affected } = await userApi.batchRemove(ids)
+    ElMessage.success(`已删除 ${affected} 个用户`)
+    selected.value = []
+    await fetchList()
+  } finally {
+    batchSubmitting.value = false
+  }
+}
+
+function handleExport() {
+  exportCsv(csvFilename('users'), rows.value, [
+    { header: 'ID', value: (u) => u.id },
+    { header: '用户名', value: (u) => u.username },
+    { header: '姓名', value: (u) => u.full_name },
+    { header: '邮箱', value: (u) => u.email },
+    { header: '角色', value: (u) => (u.is_superuser ? '超级管理员' : '普通用户') },
+    { header: '状态', value: (u) => (u.is_active ? '启用' : '禁用') },
+    { header: '创建时间', value: (u) => formatDateTime(u.created_at) },
+  ])
+  ElMessage.success(`已导出当前页 ${rows.value.length} 条`)
+}
+
+/** 自己的行不可勾选：后端也会再拦一道，这里是交互层提示 */
+function canSelect(row: User): boolean {
+  return row.id !== authStore.currentUser?.id
+}
+
 onMounted(fetchList)
 </script>
 
@@ -148,9 +192,23 @@ onMounted(fetchList)
   <div class="page">
     <div class="page__header">
       <h2 class="page__title">用户管理</h2>
-      <el-button type="primary" @click="openCreate">
-        <el-icon><Plus /></el-icon>新建用户
-      </el-button>
+      <div class="header-actions">
+        <el-button :disabled="!rows.length" @click="handleExport">
+          <el-icon><Download /></el-icon>导出 CSV
+        </el-button>
+        <el-button
+          type="danger"
+          plain
+          :disabled="!selected.length"
+          :loading="batchSubmitting"
+          @click="handleBatchDelete"
+        >
+          批量删除{{ selected.length ? `（${selected.length}）` : '' }}
+        </el-button>
+        <el-button type="primary" @click="openCreate">
+          <el-icon><Plus /></el-icon>新建用户
+        </el-button>
+      </div>
     </div>
 
     <div class="card">
@@ -177,7 +235,14 @@ onMounted(fetchList)
         <el-button @click="resetQuery">重置</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="rows" stripe border>
+      <el-table
+        v-loading="loading"
+        :data="rows"
+        stripe
+        border
+        @selection-change="(vals: User[]) => (selected = vals)"
+      >
+        <el-table-column type="selection" width="44" :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="full_name" label="姓名" min-width="120">
@@ -262,3 +327,10 @@ onMounted(fetchList)
     </el-dialog>
   </div>
 </template>
+
+<style scoped lang="scss">
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+</style>

@@ -50,3 +50,15 @@ class IdResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class BatchIdsRequest(BaseModel):
+    """批量操作的 ID 集合。"""
+
+    ids: list[int] = Field(min_length=1, max_length=100, description="目标 ID，1-100 个")
+
+
+class BatchResult(BaseModel):
+    """批量操作结果：跳过不存在的，只报告实际影响数。"""
+
+    affected: int = Field(description="实际受影响的行数")

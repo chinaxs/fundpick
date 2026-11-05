@@ -142,6 +142,7 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | GET | `/admin/users/{id}` | 详情 |
 | PATCH | `/admin/users/{id}` | 更新 |
 | DELETE | `/admin/users/{id}` | 软删除 |
+| POST | `/admin/users/batch-delete` | 批量软删除，body `{ids:[1..100]}`；操作者本人自动跳过 |
 
 ### 后台 · 内容
 
@@ -152,6 +153,10 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | GET | `/admin/articles/{id}` | 详情 |
 | PATCH | `/admin/articles/{id}` | 更新（含发布/撤回） |
 | DELETE | `/admin/articles/{id}` | 软删除 |
+| POST | `/admin/articles/batch-delete` | 批量软删除 |
+| POST | `/admin/articles/batch-status` | 批量发布 / 撤回，body `{ids, status}` |
+
+批量操作返回 `data.affected`（实际受影响行数，不存在的 ID 被跳过）。
 
 ### 后台 · 概览（登录）
 
