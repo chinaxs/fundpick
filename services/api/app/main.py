@@ -83,6 +83,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        # localhost / 127.0.0.1 / [::1] 在浏览器中是三个不同的源，
+        # 逐个枚举会漏配；开发环境用正则统一放行本机。
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

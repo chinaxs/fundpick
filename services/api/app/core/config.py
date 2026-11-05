@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     API_V1_PREFIX: str = "/api/v1"
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:3000"
+    # 留空时开发环境自动放行本机任意端口；生产环境留空即不启用正则匹配
+    CORS_ORIGIN_REGEX: str = ""
 
     # ---- 安全 ----
     SECRET_KEY: str = "change-me"
@@ -82,6 +84,21 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        """允许的来源正则。
+
+        开发环境默认放行本机任意端口：浏览器把 localhost / 127.0.0.1 / [::1]
+        视为**三个不同的源**，端口也参与比较，逐个枚举必然漏配（这正是
+        "localhost:3000 正常、127.0.0.1:3000 报 CORS" 的原因）。
+        生产环境不启用该默认值，必须显式配置，避免意外放开。
+        """
+        if self.CORS_ORIGIN_REGEX:
+            return self.CORS_ORIGIN_REGEX
+        if self.is_production:
+            return None
+        return r"^http://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"
 
     @property
     def is_production(self) -> bool:
