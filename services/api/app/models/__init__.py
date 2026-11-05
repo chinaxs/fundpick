@@ -7,6 +7,7 @@ from app.db.base import Base
 from app.models.article import Article, ArticleStatus
 from app.models.fund import Fund, FundStatus, FundType, RiskLevel
 from app.models.fund_company import FundCompany, FundManager
+from app.models.fund_favorite import FundFavorite
 from app.models.fund_metric import FundMetric, MetricPeriod
 from app.models.fund_nav import FundNav
 from app.models.fund_sector import FundSector
@@ -18,6 +19,7 @@ __all__ = [
     "Base",
     "Fund",
     "FundCompany",
+    "FundFavorite",
     "FundManager",
     "FundMetric",
     "FundNav",

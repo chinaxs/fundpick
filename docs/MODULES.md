@@ -37,6 +37,7 @@
 | 数据连接 | `app/db/` | 引擎、会话工厂、ORM 基类 | 写具体业务查询 | [README](../services/api/app/db/README.md) |
 | 通用工具 | `app/utils/` | 无副作用的纯函数 | 变成垃圾桶 | — |
 | 数据源 | `app/datasources/` | 抽象外部数据接入，隔离供应商差异 | 把业务规则写进采集层 | [README](../services/api/app/datasources/README.md) |
+| 基金关注 | `app/repositories/favorite.py` + `services/favorite.py` | 会员自选：增删、列表、代码集合 | 把权限判断写进仓储 |
 | AI 能力 | `app/ai/` | 模型工厂、工具、智能体、工作流 | 绕过 service 改数据 | [README](../services/api/app/ai/README.md) |
 | 迁移 | `alembic/` | 版本化表结构变更 | 手改线上库 | [README](../services/api/alembic/README.md) |
 | 测试 | `tests/` | 接口与纯函数回归 | 依赖外部模型服务 | — |

@@ -51,7 +51,8 @@
 - `services` **禁止**出现 `Request`、`HTTPException`、`status_code` 等 HTTP 概念；业务错误统一抛 `AppException` 子类。
 - `repositories` **禁止**抛 HTTP 异常；只返回模型或 `None`。
 - 路由按调用方分包：`portal/`（匿名只读）、`admin/`（需登录）、`common/`（探活）。
-  `portal/` 出现写操作、`admin/` 出现无鉴权端点，视为设计错误。
+  `portal/` 的公开接口出现写操作（会员专属接口如 `favorites` 除外，需在 tag 标明登录）、
+  `admin/` 出现无鉴权端点，视为设计错误。
 - `/admin/**` 的鉴权依赖**必须**用 `StaffUser`，不能用 `CurrentUser`：
   门户会员同样持有有效 JWT，用 `CurrentUser` 会让注册用户拿到后台权限
   （见 [ADR-0009](adr/0009-portal-member-isolation.md)）。

@@ -89,6 +89,17 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 **门户注册的账号不能登录后台**：`is_staff=False`，后台登录返回 401；
 即便持有有效 token，调用 `/admin/**` 也会得到 403。详见 [ADR-0009](adr/0009-portal-member-isolation.md)。
 
+### 门户 · 自选（需登录）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/portal/favorites` | 我的关注列表（分页，含所选区间指标） |
+| GET | `/portal/favorites/codes` | 已关注代码列表，列表页标记星标用（一次拉全量，最多 500） |
+| POST | `/portal/favorites` | 关注，body：`{ "code": "002910" }`；已关注时幂等 |
+| DELETE | `/portal/favorites/{code}` | 取消关注 |
+
+取消关注是**硬删除**：软删会占住 `(user_id, fund_id)` 唯一约束，导致取消后无法再次关注。
+
 ### 门户 · 基金（公开）
 
 | 方法 | 路径 | 说明 |

@@ -100,6 +100,33 @@ def _downsample(points: list[NavPointRead], limit: int) -> list[NavPointRead]:
     return [points[round(i * step)] for i in range(limit)]
 
 
+def to_list_item(row: tuple[Any, ...]) -> FundListItem:
+    """把 (Fund, FundMetric, company_name, manager_name) 映射成列表项。
+
+    抽取出来是为了让"关注列表"复用同一套映射，避免两个接口字段口径不一致。
+    """
+    fund, metric, company_name, manager_name = row
+    return FundListItem(
+        id=fund.id,
+        code=fund.code,
+        name=fund.name,
+        type=fund.type,
+        risk_level=fund.risk_level,
+        company_name=company_name,
+        manager_name=manager_name,
+        latest_nav=fund.latest_nav,
+        latest_nav_date=fund.latest_nav_date,
+        scale=fund.scale,
+        fee_rate=fund.management_fee,
+        return_rate=metric.return_rate if metric else None,
+        max_drawdown=metric.max_drawdown if metric else None,
+        volatility=metric.volatility if metric else None,
+        sharpe=metric.sharpe if metric else None,
+        rank=metric.rank if metric else None,
+        total=metric.total if metric else None,
+    )
+
+
 class FundService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -113,26 +140,7 @@ class FundService:
 
     @staticmethod
     def _to_list_item(row: tuple[Any, ...]) -> FundListItem:
-        fund, metric, company_name, manager_name = row
-        return FundListItem(
-            id=fund.id,
-            code=fund.code,
-            name=fund.name,
-            type=fund.type,
-            risk_level=fund.risk_level,
-            company_name=company_name,
-            manager_name=manager_name,
-            latest_nav=fund.latest_nav,
-            latest_nav_date=fund.latest_nav_date,
-            scale=fund.scale,
-            fee_rate=fund.management_fee,
-            return_rate=metric.return_rate if metric else None,
-            max_drawdown=metric.max_drawdown if metric else None,
-            volatility=metric.volatility if metric else None,
-            sharpe=metric.sharpe if metric else None,
-            rank=metric.rank if metric else None,
-            total=metric.total if metric else None,
-        )
+        return to_list_item(row)
 
     # ---------------------------------------------------------- 详情
     async def detail(self, code: str) -> FundDetail:

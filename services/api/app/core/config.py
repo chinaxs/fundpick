@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     # ---- 应用 ----
-    APP_NAME: str = "study-api"
+    APP_NAME: str = "fundpick-api"
     APP_ENV: Literal["development", "staging", "production", "test"] = "development"
     DEBUG: bool = False
     VERSION: str = "0.1.0"
