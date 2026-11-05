@@ -12,10 +12,12 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.admin import ai, articles, auth, funds, users
+from app.api.v1.admin import ai, articles, audit_logs, auth, dashboard, funds, users
 
 router = APIRouter(prefix="/admin")
 router.include_router(auth.router)
+router.include_router(dashboard.router)
+router.include_router(audit_logs.router)
 router.include_router(users.router)
 router.include_router(articles.router)
 router.include_router(funds.router)

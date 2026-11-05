@@ -38,6 +38,8 @@
 | 通用工具 | `app/utils/` | 无副作用的纯函数 | 变成垃圾桶 | — |
 | 数据源 | `app/datasources/` | 抽象外部数据接入，隔离供应商差异 | 把业务规则写进采集层 | [README](../services/api/app/datasources/README.md) |
 | 基金关注 | `app/repositories/favorite.py` + `services/favorite.py` | 会员自选：增删、列表、代码集合 | 把权限判断写进仓储 |
+| 后台审计 | `app/api/middleware/audit.py` | 自动记录 `/admin/**` 写操作到 `audit_logs` | 在业务代码里手工埋点 |
+| 运营统计 | `app/repositories/admin_stats.py` + `services/admin_stats.py` | 仪表盘聚合查询、系统信息 | 把展示格式化写进后端 |
 | AI 能力 | `app/ai/` | 模型工厂、工具、智能体、工作流 | 绕过 service 改数据 | [README](../services/api/app/ai/README.md) |
 | 迁移 | `alembic/` | 版本化表结构变更 | 手改线上库 | [README](../services/api/alembic/README.md) |
 | 测试 | `tests/` | 接口与纯函数回归 | 依赖外部模型服务 | — |
@@ -50,9 +52,10 @@
 | --- | --- | --- | --- |
 | 接口层 | `src/api/` | axios 实例、拦截器、按模块的接口函数 | [README](../apps/admin/src/api/README.md) |
 | 状态 | `src/stores/` | 跨页面共享状态（登录态、UI） | [README](../apps/admin/src/stores/README.md) |
-| 页面 | `src/views/` | 交互与展示 | [README](../apps/admin/src/views/README.md) |
-| 布局 | `src/layouts/` | 侧边栏 + 顶栏骨架 | [README](../apps/admin/src/layouts/README.md) |
-| 路由 | `src/router/` | 路由表、守卫、标题 | [README](../apps/admin/src/router/README.md) |
+| 页面 | `src/views/` | 交互与展示，按菜单分组组织子目录 | [README](../apps/admin/src/views/README.md) |
+| 布局 | `src/layouts/` | 侧边栏（按分组聚合）+ 顶栏 + 面包屑 | [README](../apps/admin/src/layouts/README.md) |
+| 路由 | `src/router/` | 路由表、`meta.group` 分组、守卫、标题 | [README](../apps/admin/src/router/README.md) |
+| 后台类型 | `src/types/` | 仅管理端使用的视图类型（概览、审计） | — |
 | 样式 | `src/styles/` | 设计变量与全局样式 | [README](../apps/admin/src/styles/README.md) |
 
 ### apps/portal

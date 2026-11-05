@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.middleware.audit import AuditMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -88,6 +89,14 @@ OPENAPI_TAGS = [
     {"name": "门户 · 统计", "description": "门户首页聚合统计。**匿名可访问，只读。**"},
     {"name": "门户 · 内容", "description": "门户研报/文章。**匿名可访问，只读。**"},
     {
+        "name": "后台 · 概览",
+        "description": "运营仪表盘与系统信息。仪表盘需登录；系统信息仅超管。",
+    },
+    {
+        "name": "后台 · 审计",
+        "description": "操作日志查询。**仅超管。**",
+    },
+    {
         "name": "后台 · 认证",
         "description": "后台账号登录、刷新令牌、当前用户、改密。",
     },
@@ -122,6 +131,8 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(RequestContextMiddleware)
+    # 放在 RequestContext 内层：能读到路由依赖写入的 request.state.user_*
+    app.add_middleware(AuditMiddleware)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,

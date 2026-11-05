@@ -5,6 +5,7 @@ Alembic 的 target_metadata 依赖此处的导入，新增模型务必在此注�
 
 from app.db.base import Base
 from app.models.article import Article, ArticleStatus
+from app.models.audit_log import AuditLog
 from app.models.fund import Fund, FundStatus, FundType, RiskLevel
 from app.models.fund_company import FundCompany, FundManager
 from app.models.fund_favorite import FundFavorite
@@ -16,6 +17,7 @@ from app.models.user import User
 __all__ = [
     "Article",
     "ArticleStatus",
+    "AuditLog",
     "Base",
     "Fund",
     "FundCompany",

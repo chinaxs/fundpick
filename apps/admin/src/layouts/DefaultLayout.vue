@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { ElMessageBox } from 'element-plus'
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
 
+import { MENU_GROUPS, layoutChildren } from '@/router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -11,17 +12,63 @@ const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 
-const menus = [
-  { name: 'dashboard', title: '仪表盘', icon: 'Odometer' },
-  { name: 'funds', title: '基金管理', icon: 'TrendCharts' },
-  { name: 'articles', title: '内容管理', icon: 'Document' },
-  { name: 'users', title: '用户管理', icon: 'User' },
-]
+interface MenuItem {
+  name: string
+  title: string
+  icon: string
+}
 
-const activeMenu = computed(() => route.name as string)
+interface MenuGroup {
+  name: string
+  icon: string
+  children: MenuItem[]
+}
+
+/** 菜单由路由表生成：新增页面只需在 router 里加一条，菜单自动出现 */
+const groups = computed<MenuGroup[]>(() => {
+  const items = layoutChildren
+    .filter((r) => r.meta?.group && !r.meta.hidden)
+    .filter((r) => !r.meta?.superuser || authStore.isSuperuser)
+    .map((r) => ({
+      name: String(r.name),
+      title: r.meta?.title ?? String(r.name),
+      icon: r.meta?.icon ?? 'Menu',
+    }))
+
+  return MENU_GROUPS.map((group) => ({
+    name: group.name,
+    icon: group.icon,
+    children: items.filter((item) => {
+      const record = layoutChildren.find((r) => r.name === item.name)
+      return record?.meta?.group === group.name
+    }),
+  })).filter((group) => group.children.length > 0)
+})
+
+const activeMenu = computed(() => String(route.name ?? ''))
+
+/** 只有一个子项的分组不套二级菜单，直接用子项本身 */
+const flatGroups = computed(() => groups.value.filter((g) => g.children.length === 1))
+const nestedGroups = computed(() => groups.value.filter((g) => g.children.length > 1))
+
+/** 当前分组默认展开，避免进页面后还要手动点开 */
+const defaultOpeneds = computed(() => {
+  const group = groups.value.find((g) =>
+    g.children.some((child) => child.name === activeMenu.value),
+  )
+  return group && group.children.length > 1 ? [group.name] : []
+})
+
+const breadcrumbs = computed(() => {
+  const items: { title: string }[] = [{ title: '首页' }]
+  const groupName = route.meta.group as string | undefined
+  const nested = nestedGroups.value.some((g) => g.name === groupName)
+  if (nested && groupName) items.push({ title: groupName })
+  if (route.meta.title) items.push({ title: route.meta.title })
+  return items
+})
 
 onMounted(() => {
-  // 页面刷新后恢复用户信息
   authStore.fetchProfile().catch(() => authStore.logout())
 })
 
@@ -46,18 +93,44 @@ async function handleLogout() {
         <span v-show="!appStore.sidebarCollapsed" class="logo__text">拾贝管理</span>
       </div>
 
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="appStore.sidebarCollapsed"
-        :collapse-transition="false"
-        router
-        class="layout__menu"
-      >
-        <el-menu-item v-for="item in menus" :key="item.name" :index="item.name">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <template #title>{{ item.title }}</template>
-        </el-menu-item>
-      </el-menu>
+      <el-scrollbar class="layout__scroll">
+        <el-menu
+          :default-active="activeMenu"
+          :default-openeds="defaultOpeneds"
+          :collapse="appStore.sidebarCollapsed"
+          :collapse-transition="false"
+          unique-opened
+          router
+          class="layout__menu"
+        >
+          <!-- 单页分组：直接是菜单项 -->
+          <el-menu-item
+            v-for="group in flatGroups"
+            :key="group.children[0]!.name"
+            :index="group.children[0]!.name"
+          >
+            <el-icon><component :is="group.children[0]!.icon" /></el-icon>
+            <template #title>{{ group.children[0]!.title }}</template>
+          </el-menu-item>
+
+          <!-- 多页分组：一级可折叠 -->
+          <el-sub-menu v-for="group in nestedGroups" :key="group.name" :index="group.name">
+            <template #title>
+              <el-icon><component :is="group.icon" /></el-icon>
+              <span>{{ group.name }}</span>
+            </template>
+            <el-menu-item v-for="item in group.children" :key="item.name" :index="item.name">
+              <el-icon><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.title }}</template>
+            </el-menu-item>
+          </el-sub-menu>
+        </el-menu>
+      </el-scrollbar>
+
+      <div v-show="!appStore.sidebarCollapsed" class="aside-foot">
+        <span class="aside-foot__dot" />
+        数据 T+1 · v1.0
+      </div>
     </el-aside>
 
     <el-container>
@@ -68,13 +141,13 @@ async function handleLogout() {
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ name: 'dashboard' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
+            <el-breadcrumb-item v-for="(item, index) in breadcrumbs" :key="index">
+              {{ item.title }}
+            </el-breadcrumb-item>
           </el-breadcrumb>
         </div>
 
         <div class="layout__header-right">
-          <!-- 后台接口文档与门户分开：这里只看 /admin/** 的部分 -->
           <a class="doc-link" href="/docs/admin" target="_blank" rel="noreferrer">
             <el-icon><Document /></el-icon>
             <span>接口文档</span>
@@ -91,7 +164,10 @@ async function handleLogout() {
                 <el-dropdown-item disabled>{{
                   authStore.currentUser?.email ?? '—'
                 }}</el-dropdown-item>
-                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+                <el-dropdown-item divided @click="router.push({ name: 'settings' })">
+                  个人设置
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -121,23 +197,36 @@ async function handleLogout() {
     overflow: hidden;
   }
 
-  &__menu {
+  &__scroll {
     flex: 1;
+    min-height: 0;
+  }
+
+  &__menu {
     border-right: none;
     background: transparent;
 
-    :deep(.el-menu-item) {
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
       color: #cbd5e0;
 
       &:hover {
+        color: #fff;
         background: rgb(255 255 255 / 8%);
-        color: #fff;
       }
+    }
 
-      &.is-active {
-        background: $color-primary;
-        color: #fff;
-      }
+    :deep(.el-menu-item.is-active) {
+      color: #fff;
+      background: $color-primary;
+    }
+
+    :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+      color: #fff;
+    }
+
+    :deep(.el-menu) {
+      background: rgb(0 0 0 / 18%);
     }
   }
 
@@ -169,6 +258,48 @@ async function handleLogout() {
   }
 }
 
+.logo {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: $header-height;
+  padding: 0 16px;
+  overflow: hidden;
+  white-space: nowrap;
+
+  &__mark {
+    flex: none;
+  }
+
+  &__text {
+    font-weight: 600;
+    color: #fff;
+  }
+}
+
+.aside-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 18px;
+  font-size: 11px;
+  color: #64748b;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    background: #22c55e;
+    border-radius: 50%;
+  }
+}
+
+.collapse-btn {
+  font-size: 18px;
+  color: $text-regular;
+  cursor: pointer;
+}
+
 .doc-link {
   display: flex;
   gap: 6px;
@@ -182,32 +313,6 @@ async function handleLogout() {
   }
 }
 
-.logo {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  height: $header-height;
-  padding: 0 16px;
-  overflow: hidden;
-  white-space: nowrap;
-
-  &__mark {
-    flex: none;
-    color: $color-primary;
-  }
-
-  &__text {
-    font-weight: 600;
-    color: #fff;
-  }
-}
-
-.collapse-btn {
-  font-size: 18px;
-  color: $text-regular;
-  cursor: pointer;
-}
-
 .user {
   display: flex;
   gap: 8px;
@@ -216,7 +321,7 @@ async function handleLogout() {
 
   &__name {
     font-size: 14px;
-    color: $text-regular;
+    color: $text-primary;
   }
 }
 

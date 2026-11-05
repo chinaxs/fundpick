@@ -1,6 +1,6 @@
 """认证接口。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, RefreshRequest, TokenResponse
@@ -13,12 +13,15 @@ router = APIRouter(prefix="/auth", tags=["后台 · 认证"])
 
 @router.post("/login", summary="账号密码登录", response_model=ApiResponse[TokenResponse])
 async def login(
-    payload: LoginRequest, session: SessionDep, request_id: RequestIdDep
+    payload: LoginRequest, session: SessionDep, request_id: RequestIdDep, request: Request
 ) -> ApiResponse[TokenResponse]:
     tokens = await AuthService(session).login(
         payload.username, payload.password, require_staff=True
     )
+    # 登录成功后回填身份，供审计中间件把"谁登录了"写进日志
+    request.state.username = payload.username
     return ApiResponse(code=0, message="登录成功", data=tokens, request_id=request_id)
+
 
 
 @router.post("/refresh", summary="刷新令牌", response_model=ApiResponse[TokenResponse])

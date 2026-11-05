@@ -1,80 +1,247 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { articleApi, userApi } from '@/api'
+import { fromNow, formatDateTime } from '@project/shared'
+
+import { dashboardApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import type { DashboardOverview } from '@/types/admin'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const stats = ref({ users: 0, articles: 0, published: 0 })
+const overview = ref<DashboardOverview | null>(null)
 const loading = ref(true)
+
+const refreshTimer = ref<ReturnType<typeof setInterval>>()
 
 onMounted(async () => {
   try {
-    const [users, articles, published] = await Promise.all([
-      userApi.list({ page: 1, page_size: 1 }),
-      articleApi.list({ page: 1, page_size: 1 }),
-      articleApi.list({ page: 1, page_size: 1, status: 'published' }),
-    ])
-    stats.value = {
-      users: users.total,
-      articles: articles.total,
-      published: published.total,
-    }
+    overview.value = await dashboardApi.overview()
   } finally {
     loading.value = false
   }
+  // 每分钟刷新一次服务器时间，展示"活着"的后台
+  refreshTimer.value = setInterval(async () => {
+    overview.value = await dashboardApi.overview().catch(() => overview.value ?? null)
+  }, 60_000)
 })
 
-const cards = [
-  { key: 'users', label: '用户总数', icon: 'User', to: 'users' },
-  { key: 'articles', label: '文章总数', icon: 'Document', to: 'articles' },
-  { key: 'published', label: '已发布', icon: 'Promotion', to: 'articles' },
-] as const
+onBeforeUnmount(() => {
+  if (refreshTimer.value) clearInterval(refreshTimer.value)
+})
+
+/** 核心指标卡：点击跳到对应模块 */
+const cards = computed(() => [
+  {
+    label: '基金总数',
+    icon: 'Coin',
+    to: 'funds',
+    value: overview.value?.funds_total ?? 0,
+    hint: overview.value
+      ? `公司 ${overview.value.companies_total} · 经理 ${overview.value.managers_total}`
+      : '',
+  },
+  {
+    label: '用户总数',
+    icon: 'User',
+    to: 'users',
+    value: overview.value?.user_total ?? 0,
+    hint: overview.value ? `近 7 日新增 ${overview.value.user_new_7d}` : '',
+  },
+  {
+    label: '文章总数',
+    icon: 'Document',
+    to: 'articles',
+    value: overview.value?.article_total ?? 0,
+    hint: overview.value ? `已发布 ${overview.value.article_published}` : '',
+  },
+  {
+    label: '自选关注',
+    icon: 'Star',
+    to: 'funds',
+    value: overview.value?.favorite_total ?? 0,
+    hint: '用户添加的基金自选',
+  },
+])
+
+/** 净值新鲜度：lag<=1 天视为健康 */
+const navLag = computed(() => overview.value?.nav_date_lag_days ?? null)
+const navFreshness = computed(() => {
+  if (navLag.value === null) return { text: '暂无净值', type: 'info' as const }
+  if (navLag.value <= 1) return { text: `T+${navLag.value} · 数据新鲜`, type: 'success' as const }
+  if (navLag.value <= 3) return { text: `滞后 ${navLag.value} 天`, type: 'warning' as const }
+  return { text: `滞后 ${navLag.value} 天，请关注采集任务`, type: 'danger' as const }
+})
+
+/** 类型分布条宽：按最大计数归一化 */
+const maxTypeCount = computed(() =>
+  Math.max(1, ...(overview.value?.type_distribution.map((t) => t.count) ?? [1])),
+)
+
+function distWidth(count: number): string {
+  return `${Math.max(4, Math.round((count / maxTypeCount.value) * 100))}%`
+}
+
+function actionLabel(method: string): string {
+  if (method === 'POST') return '新增'
+  if (method === 'PUT' || method === 'PATCH') return '修改'
+  if (method === 'DELETE') return '删除'
+  return method
+}
+
+/** 千分位：1,234,567 */
+function fmtNum(value: number): string {
+  return value.toLocaleString('zh-CN')
+}
 </script>
 
 <template>
   <div class="page">
     <div class="page__header">
       <h2 class="page__title">仪表盘</h2>
-      <span class="muted">欢迎回来，{{ authStore.displayName }}</span>
+      <span class="muted">
+        欢迎回来，{{ authStore.displayName }} · 服务器时间
+        {{ overview ? formatDateTime(overview.server_time) : '—' }}
+      </span>
     </div>
 
-    <el-row :gutter="16">
-      <el-col v-for="card in cards" :key="card.key" :xs="24" :sm="8">
+    <el-row :gutter="16" class="stat-row">
+      <el-col v-for="card in cards" :key="card.label" :xs="12" :sm="6">
         <div class="card stat" @click="router.push({ name: card.to })">
           <div class="stat__icon">
             <el-icon :size="22"><component :is="card.icon" /></el-icon>
           </div>
-          <div>
+          <div class="stat__body">
             <div class="stat__label">{{ card.label }}</div>
             <div class="stat__value">
-              <el-skeleton v-if="loading" :rows="0" animated style="width: 60px" />
-              <template v-else>{{ stats[card.key] }}</template>
+              <el-skeleton v-if="loading" :rows="0" animated style="width: 72px" />
+              <template v-else>{{ fmtNum(card.value) }}</template>
             </div>
+            <div class="stat__hint">{{ card.hint }}</div>
           </div>
         </div>
       </el-col>
     </el-row>
 
+    <el-row :gutter="16">
+      <!-- 左：数据覆盖率 -->
+      <el-col :xs="24" :lg="10">
+        <div class="card">
+          <div class="card-head">
+            <h3 class="section-title">数据覆盖率</h3>
+            <el-tag v-if="overview" :type="navFreshness.type" size="small" effect="light">
+              {{ navFreshness.text }}
+            </el-tag>
+          </div>
+          <el-skeleton v-if="loading" :rows="6" animated />
+          <template v-else>
+            <p v-if="!overview?.coverage.length" class="empty">暂无覆盖率数据</p>
+            <div v-for="item in overview?.coverage" :key="item.key" class="coverage">
+              <div class="coverage__meta">
+                <span>{{ item.label }}</span>
+                <span class="muted">{{ item.covered }} / {{ item.total }}</span>
+              </div>
+              <el-progress
+                :percentage="item.percent"
+                :stroke-width="8"
+                :color="item.percent >= 80 ? '#2563eb' : item.percent >= 40 ? '#f59e0b' : '#ef4444'"
+              />
+            </div>
+            <div class="nav-latest muted">最新净值日期：{{ overview?.nav_latest_date ?? '—' }}</div>
+          </template>
+        </div>
+      </el-col>
+
+      <!-- 右：类型分布 + 最近用户 -->
+      <el-col :xs="24" :lg="14">
+        <div class="card">
+          <div class="card-head">
+            <h3 class="section-title">基金类型分布</h3>
+            <router-link class="more" :to="{ name: 'funds' }">查看全部 →</router-link>
+          </div>
+          <el-skeleton v-if="loading" :rows="4" animated />
+          <template v-else>
+            <p v-if="!overview?.type_distribution.length" class="empty">暂无分布数据</p>
+            <div
+              v-for="item in overview?.type_distribution"
+              :key="item.type"
+              class="dist"
+              @click="router.push({ name: 'funds' })"
+            >
+              <span class="dist__label">{{ item.label }}</span>
+              <div class="dist__bar">
+                <div class="dist__fill" :style="{ width: distWidth(item.count) }" />
+              </div>
+              <span class="dist__count muted">{{ fmtNum(item.count) }}</span>
+            </div>
+          </template>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="section-title">最近注册用户</h3>
+            <router-link class="more" :to="{ name: 'users' }">用户管理 →</router-link>
+          </div>
+          <el-skeleton v-if="loading" :rows="3" animated />
+          <el-table v-else :data="overview?.recent_users ?? []" size="small" stripe>
+            <el-table-column prop="username" label="用户名" min-width="120" />
+            <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.email ?? '—' }}</template>
+            </el-table-column>
+            <el-table-column label="身份" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_staff" size="small" type="warning">员工</el-tag>
+                <el-tag v-else size="small" type="info">用户</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="注册时间" width="130">
+              <template #default="{ row }">{{ fromNow(row.created_at) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-col>
+    </el-row>
+
+    <!-- 最近操作日志 -->
     <div class="card">
-      <h3 class="section-title">项目结构速览</h3>
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="前端（后台）"
-          >apps/admin · Vue 3 + Vite + Element Plus</el-descriptions-item
-        >
-        <el-descriptions-item label="前端（门户）">apps/portal · Nuxt（SSR）</el-descriptions-item>
-        <el-descriptions-item label="后端"
-          >services/api · FastAPI + SQLAlchemy 2.x</el-descriptions-item
-        >
-        <el-descriptions-item label="数据库">MySQL · test_study</el-descriptions-item>
-        <el-descriptions-item label="共享层">packages/shared · 类型与常量</el-descriptions-item>
-        <el-descriptions-item label="接口文档">
-          <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer">/docs</a>
-        </el-descriptions-item>
-      </el-descriptions>
+      <div class="card-head">
+        <h3 class="section-title">最近操作</h3>
+        <router-link v-if="authStore.isSuperuser" class="more" :to="{ name: 'audit-logs' }">
+          全部日志 →
+        </router-link>
+      </div>
+      <el-skeleton v-if="loading" :rows="3" animated />
+      <el-table v-else :data="overview?.recent_audits ?? []" size="small" stripe>
+        <el-table-column prop="username" label="操作人" width="120">
+          <template #default="{ row }">{{ row.username ?? '—' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-tag
+              :type="
+                row.method === 'DELETE' ? 'danger' : row.method === 'POST' ? 'success' : 'warning'
+              "
+              size="small"
+            >
+              {{ actionLabel(row.method) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="resource" label="对象" min-width="160" show-overflow-tooltip />
+        <el-table-column label="状态" width="80">
+          <template #default="{ row }">
+            <span :class="row.status_code < 400 ? 'ok' : 'fail'">{{ row.status_code }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="时间" width="130">
+          <template #default="{ row }">{{ fromNow(row.created_at) }}</template>
+        </el-table-column>
+      </el-table>
+      <p v-if="!loading && !overview?.recent_audits.length" class="empty">
+        暂无操作记录——后台的写操作（增删改）都会自动记录在这里
+      </p>
     </div>
   </div>
 </template>
@@ -85,10 +252,15 @@ const cards = [
   color: $text-secondary;
 }
 
+.stat-row {
+  margin-bottom: 4px;
+}
+
 .stat {
   display: flex;
   gap: 14px;
   align-items: center;
+  margin-bottom: 16px;
   cursor: pointer;
   transition:
     transform 0.15s ease,
@@ -101,11 +273,12 @@ const cards = [
 
   &__icon {
     display: grid;
+    flex: none;
     place-items: center;
     width: 44px;
     height: 44px;
     color: $color-primary;
-    background: rgb(43 108 176 / 10%);
+    background: rgb(37 99 235 / 10%);
     border-radius: 10px;
   }
 
@@ -115,10 +288,30 @@ const cards = [
   }
 
   &__value {
-    margin-top: 4px;
+    margin-top: 2px;
     font-size: 24px;
     font-weight: 600;
     line-height: 1.2;
+  }
+
+  &__hint {
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 12px;
+    color: $text-secondary;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+
+  .section-title {
+    margin: 0;
   }
 }
 
@@ -126,5 +319,76 @@ const cards = [
   margin: 0 0 16px;
   font-size: 15px;
   font-weight: 600;
+}
+
+.more {
+  font-size: 13px;
+  color: $color-primary;
+  text-decoration: none;
+}
+
+.coverage {
+  margin-bottom: 14px;
+
+  &__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+}
+
+.nav-latest {
+  padding-top: 4px;
+  text-align: right;
+}
+
+.dist {
+  display: grid;
+  grid-template-columns: 72px 1fr 72px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+  cursor: pointer;
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__bar {
+    height: 10px;
+    overflow: hidden;
+    background: $bg-page;
+    border-radius: 5px;
+  }
+
+  &__fill {
+    height: 100%;
+    background: $color-primary;
+    border-radius: 5px;
+    transition: width 0.4s ease;
+  }
+
+  &__count {
+    text-align: right;
+  }
+}
+
+.ok {
+  color: #16a34a;
+}
+
+.fail {
+  color: #ef4444;
+}
+
+.empty {
+  margin: 8px 0;
+  font-size: 13px;
+  color: $text-secondary;
+  text-align: center;
 }
 </style>

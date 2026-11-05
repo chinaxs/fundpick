@@ -153,6 +153,24 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | PATCH | `/admin/articles/{id}` | 更新（含发布/撤回） |
 | DELETE | `/admin/articles/{id}` | 软删除 |
 
+### 后台 · 概览（登录）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/admin/dashboard` | 运营概览：核心计数、数据覆盖率、类型分布、最近用户与最近操作，一次返回 |
+| GET | `/admin/system/info` | 系统信息（**仅超管**）：运行环境、Python 版本、启动时间、各业务表行数 |
+
+### 后台 · 审计（仅超管）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/admin/audit-logs` | 操作日志查询（username 模糊 / resource / status_code / 时间范围，分页） |
+
+后台所有写操作（`POST/PATCH/PUT/DELETE`，路径前缀 `/admin/**`）由
+`AuditMiddleware` 自动落库到 `audit_logs` 表，业务代码零埋点。
+记录内容：操作人、动作、资源、状态码、IP、耗时；**不记录请求体**（避免密码/令牌泄漏）。
+登录成功后回填操作人，失败尝试仅保留 IP，可用于暴力破解排查。
+
 ### 后台 · 基金
 
 | 方法 | 路径 | 说明 |
@@ -183,9 +201,9 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 
 | 文档 | 地址 | 范围 |
 | --- | --- | --- |
-| 门户接口文档 | <http://127.0.0.1:8000/docs/portal> | `/portal/**` 共 9 个路径 |
-| 后台接口文档 | <http://127.0.0.1:8000/docs/admin> | `/admin/**` 共 13 个路径 |
-| 全量文档 | <http://127.0.0.1:8000/docs> | 全部 24 个路径，排查跨端问题时用 |
+| 门户接口文档 | <http://127.0.0.1:8000/docs/portal> | `/portal/**` |
+| 后台接口文档 | <http://127.0.0.1:8000/docs/admin> | `/admin/**` |
+| 全量文档 | <http://127.0.0.1:8000/docs> | 全部路径，排查跨端问题时用 |
 
 对应的 schema 分别是 `/openapi/portal.json`、`/openapi/admin.json`、`/openapi.json`。
 切分在 `app/core/openapi.py` 里按路径前缀完成，**不拆服务、不复制路由**，新增接口自动归入对应文档。

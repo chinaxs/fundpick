@@ -21,6 +21,8 @@ import type {
 
 import type { FundListItem, FundQuery } from '@project/shared'
 
+import type { AuditLogItem, AuditQuery, DashboardOverview, SystemInfo } from '@/types/admin'
+
 import { api } from './client'
 
 /** 后台接口前缀。门户接口用 `/portal/**`，两边不共用。 */
@@ -57,4 +59,19 @@ export const fundApi = {
     api.get<{ fund_total: number; nav_rows: number; latest_nav_date: string | null }>(
       `${ADMIN}/funds/sync-status`,
     ),
+}
+
+/** 运营概览：一次拉全首页所需的聚合数据 */
+export const dashboardApi = {
+  overview: () => api.get<DashboardOverview>(`${ADMIN}/dashboard`),
+}
+
+/** 操作审计（仅超管） */
+export const auditApi = {
+  list: (params: AuditQuery) => api.get<PageResult<AuditLogItem>>(`${ADMIN}/audit-logs`, params),
+}
+
+/** 系统信息（仅超管） */
+export const systemApi = {
+  info: () => api.get<SystemInfo>(`${ADMIN}/system/info`),
 }

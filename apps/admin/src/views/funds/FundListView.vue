@@ -4,7 +4,6 @@ import {
   DEFAULT_PAGE_SIZE,
   FUND_TYPE_MAP,
   PAGE_SIZE_OPTIONS,
-  formatDateTime,
   type FundListItem,
   type FundType,
 } from '@project/shared'

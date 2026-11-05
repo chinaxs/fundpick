@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ARTICLE_STATUS_MAP,
   DEFAULT_PAGE_SIZE,
@@ -12,6 +13,9 @@ import {
 
 import { articleApi } from '@/api'
 
+/** 列表页只负责检索与轻操作；新建/编辑跳独立页，发布/撤回/删除就地完成 */
+const router = useRouter()
+
 const loading = ref(false)
 const rows = ref<ArticleListItem[]>([])
 const total = ref(0)
@@ -21,25 +25,6 @@ const query = reactive({
   keyword: '',
   status: undefined as ArticleStatus | undefined,
 })
-
-const dialogVisible = ref(false)
-const submitting = ref(false)
-const editingId = ref<number | null>(null)
-const formRef = ref<FormInstance>()
-
-const form = reactive({
-  title: '',
-  slug: '',
-  summary: '',
-  content: '',
-  status: 'draft' as ArticleStatus,
-})
-
-const isEdit = computed(() => editingId.value !== null)
-
-const rules: FormRules<typeof form> = {
-  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-}
 
 const statusOptions = Object.entries(ARTICLE_STATUS_MAP).map(([value, item]) => ({
   value: value as ArticleStatus,
@@ -78,52 +63,6 @@ function resetQuery() {
   fetchList()
 }
 
-function openCreate() {
-  editingId.value = null
-  Object.assign(form, { title: '', slug: '', summary: '', content: '', status: 'draft' })
-  dialogVisible.value = true
-}
-
-async function openEdit(row: ArticleListItem) {
-  const detail = await articleApi.detail(row.id)
-  editingId.value = detail.id
-  Object.assign(form, {
-    title: detail.title,
-    slug: detail.slug ?? '',
-    summary: detail.summary ?? '',
-    content: detail.content ?? '',
-    status: detail.status,
-  })
-  dialogVisible.value = true
-}
-
-async function handleSubmit() {
-  const valid = await formRef.value?.validate().catch(() => false)
-  if (!valid) return
-
-  submitting.value = true
-  const payload = {
-    title: form.title,
-    slug: form.slug || null,
-    summary: form.summary || null,
-    content: form.content || null,
-    status: form.status,
-  }
-  try {
-    if (isEdit.value && editingId.value !== null) {
-      await articleApi.update(editingId.value, payload)
-      ElMessage.success('已更新')
-    } else {
-      await articleApi.create(payload)
-      ElMessage.success('已创建')
-    }
-    dialogVisible.value = false
-    await fetchList()
-  } finally {
-    submitting.value = false
-  }
-}
-
 async function togglePublish(row: ArticleListItem) {
   const next: ArticleStatus = row.status === 'published' ? 'draft' : 'published'
   const action = next === 'published' ? '发布' : '撤回'
@@ -140,11 +79,15 @@ async function togglePublish(row: ArticleListItem) {
 }
 
 async function handleDelete(row: ArticleListItem) {
-  const confirmed = await ElMessageBox.confirm(`确定删除《${row.title}》吗？`, '删除确认', {
-    type: 'warning',
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-  }).catch(() => false)
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除《${row.title}》吗？删除后不可恢复。`,
+    '删除确认',
+    {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    },
+  ).catch(() => false)
   if (!confirmed) return
 
   await articleApi.remove(row.id)
@@ -159,7 +102,7 @@ onMounted(fetchList)
   <div class="page">
     <div class="page__header">
       <h2 class="page__title">文章管理</h2>
-      <el-button type="primary" @click="openCreate">
+      <el-button type="primary" @click="router.push({ name: 'article-create' })">
         <el-icon><Plus /></el-icon>新建文章
       </el-button>
     </div>
@@ -209,7 +152,11 @@ onMounted(fetchList)
         </el-table-column>
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openEdit(row as ArticleListItem)"
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="router.push({ name: 'article-edit', params: { id: row.id } })"
               >编辑</el-button
             >
             <el-button
@@ -239,45 +186,5 @@ onMounted(fetchList)
         />
       </div>
     </div>
-
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑文章' : '新建文章'"
-      width="720px"
-      top="6vh"
-    >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="72px">
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="文章标题" />
-        </el-form-item>
-        <el-form-item label="Slug">
-          <el-input v-model="form.slug" placeholder="留空自动生成，用于门户 URL" />
-        </el-form-item>
-        <el-form-item label="摘要">
-          <el-input
-            v-model="form.summary"
-            type="textarea"
-            :rows="2"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="正文">
-          <el-input v-model="form.content" type="textarea" :rows="10" placeholder="支持 Markdown" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio v-for="item in statusOptions" :key="item.value" :value="item.value">
-              {{ item.label }}
-            </el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>

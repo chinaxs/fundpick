@@ -28,7 +28,7 @@ bearer_scheme = HTTPBearer(auto_error=False, description="Bearer <access_token>"
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
 
 
-async def get_current_user(session: SessionDep, credentials: BearerDep) -> User:
+async def get_current_user(request: Request, session: SessionDep, credentials: BearerDep) -> User:
     if credentials is None or not credentials.credentials:
         raise UnauthorizedError()
     try:
@@ -39,6 +39,10 @@ async def get_current_user(session: SessionDep, credentials: BearerDep) -> User:
     user = await UserRepository(session).get(int(payload["sub"]))
     if user is None or not user.is_active:
         raise UnauthorizedError("账号不存在或已被禁用")
+
+    # 供审计中间件识别操作人（中间件在 call_next 之后读取）
+    request.state.user_id = user.id
+    request.state.username = user.username
     return user
 
 
