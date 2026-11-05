@@ -11,7 +11,7 @@ from app.schemas.common import ApiResponse, PageResult
 from app.schemas.fund import FundListItem, FundQuery
 from app.services.fund import FundService
 
-router = APIRouter(prefix="/admin/funds", tags=["后台-基金管理"])
+router = APIRouter(prefix="/funds", tags=["后台 · 基金"])
 
 
 @router.get("", summary="基金列表", response_model=ApiResponse[PageResult[FundListItem]])

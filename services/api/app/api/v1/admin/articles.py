@@ -8,7 +8,7 @@ from app.schemas.article import ArticleCreate, ArticleListItem, ArticleRead, Art
 from app.schemas.common import ApiResponse, IdResponse, PageParams, PageResult
 from app.services.article import ArticleService
 
-router = APIRouter(prefix="/admin/articles", tags=["后台-文章管理"])
+router = APIRouter(prefix="/articles", tags=["后台 · 内容"])
 
 
 @router.get("", summary="文章列表", response_model=ApiResponse[PageResult[ArticleListItem]])

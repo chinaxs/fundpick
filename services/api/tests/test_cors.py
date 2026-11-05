@@ -31,7 +31,7 @@ async def test_foreign_origin_rejected(client: AsyncClient) -> None:
 
 async def test_preflight(client: AsyncClient) -> None:
     resp = await client.options(
-        "/api/v1/auth/login",
+        "/api/v1/admin/auth/login",
         headers={
             "Origin": "http://127.0.0.1:3000",
             "Access-Control-Request-Method": "POST",

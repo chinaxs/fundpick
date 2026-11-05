@@ -20,7 +20,9 @@ app/
 │   ├── deps.py             会话 / 当前用户 / 权限依赖
 │   └── v1/
 │       ├── router.py       路由汇总
-│       └── endpoints/      health · auth · users · articles · portal
+│       ├── common/         探活（无鉴权）
+│       ├── portal/         门户：funds · stats · articles（匿名只读）
+│       └── admin/          后台：auth · users · articles · funds · ai（需登录）
 ├── core/                   config · security · logging · exceptions
 ├── db/                     base（ORM 基类 + Mixin）· session（引擎 / 会话）
 ├── models/                 SQLAlchemy 模型
@@ -36,7 +38,9 @@ scripts/seed.py             初始化数据
 
 ## 分层规则
 
-`endpoints → services → repositories → models`
+`api/v1 → services → repositories → models`
+
+路由按调用方分三组：`/portal/**`（匿名只读）、`/admin/**`（需登录）、`/health/**`（探活）。
 
 - 路由层只做参数解析、鉴权、响应包装。
 - **事务提交在 service 层**（`await session.commit()`），依赖只负责异常回滚。

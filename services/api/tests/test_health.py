@@ -17,7 +17,7 @@ async def test_root(client: AsyncClient) -> None:
 
 
 async def test_unauthorized(client: AsyncClient) -> None:
-    resp = await client.get("/api/v1/auth/me")
+    resp = await client.get("/api/v1/admin/auth/me")
     assert resp.status_code == 401
     body = resp.json()
     assert body["code"] == 40100

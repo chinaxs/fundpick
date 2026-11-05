@@ -7,7 +7,7 @@ from app.schemas.common import ApiResponse, IdResponse, PageParams, PageResult
 from app.schemas.user import UserCreate, UserQuery, UserRead, UserUpdate
 from app.services.user import UserService
 
-router = APIRouter(prefix="/admin/users", tags=["后台-用户管理"])
+router = APIRouter(prefix="/users", tags=["后台 · 用户"])
 
 
 @router.get("", summary="用户列表", response_model=ApiResponse[PageResult[UserRead]])

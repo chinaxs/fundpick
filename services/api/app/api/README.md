@@ -2,25 +2,57 @@
 
 对外暴露 HTTP 接口，只做"翻译"：HTTP 语义 ↔ 业务调用。
 
+## 目录结构（按调用方划分）
+
+```
+app/api/
+├── deps.py              共用依赖：SessionDep / CurrentUser / SuperUser / RequestIdDep
+└── v1/
+    ├── router.py        汇总三组路由
+    ├── common/          公共：探活（无鉴权）
+    │   └── health.py
+    ├── portal/          门户：匿名只读
+    │   ├── funds.py
+    │   ├── stats.py
+    │   └── articles.py
+    └── admin/           后台：需登录
+        ├── auth.py
+        ├── users.py
+        ├── articles.py
+        ├── funds.py
+        └── ai.py
+```
+
+**目录即归属**：新增接口先判断"谁在调用"，再放进对应包。
+前缀在包的 `__init__.py` 里统一加（`/portal`、`/admin`），子文件只写自己的相对路径。
+
 ## 边界
+
 - 负责：参数解析与校验、鉴权依赖、调用 service、包装 `ApiResponse`、声明 `response_model`。
 - 不负责：SQL、事务、业务规则、跨模块编排。
 
-## 关键文件
-| 文件 | 作用 |
-| --- | --- |
-| `deps.py` | `SessionDep` / `CurrentUser` / `SuperUser` / `RequestIdDep` |
-| `v1/router.py` | 汇总所有子路由，新增模块在此挂载 |
-| `v1/endpoints/health.py` | 存活与数据库探针 |
-| `v1/endpoints/auth.py` | 登录、刷新、当前用户、改密 |
-| `v1/endpoints/users.py` | 后台用户管理（需超管） |
-| `v1/endpoints/articles.py` | 后台文章管理（需登录） |
-| `v1/endpoints/portal.py` | 门户公开内容接口 |
-| `v1/endpoints/ai.py` | AI 对话与质检 |
+## 分组规则
+
+| 包 | 前缀 | 鉴权 | 允许的操作 |
+| --- | --- | --- | --- |
+| `common/` | `/health` | 无 | 只读探针 |
+| `portal/` | `/portal` | 无 | **只读**，不得引入 `CurrentUser` |
+| `admin/` | `/admin` | 必须有 | 读写，可含敏感数据 |
+
+`portal/` 里出现写操作、或 `admin/` 里出现无鉴权端点，都视为**设计错误**，评审时应直接打回。
 
 ## 扩展方式
-新增资源时复制 `articles.py` 的结构：查询参数用 `Query(...)` 声明约束，响应统一 `ApiResponse[T]`。
-**不要**在这里写 `if 用户是管理员 then ...`，权限用依赖（`SuperUser`）表达。
+
+新增一个资源：
+
+1. 判断归属，在 `portal/` 或 `admin/` 下建文件；
+2. `router = APIRouter(prefix="/xxx", tags=["后台 · XXX"])`；
+3. 在对应包的 `__init__.py` 里 `include_router`；
+4. 新 tag 同步登记到 `app/main.py` 的 `OPENAPI_TAGS`（否则 Swagger 分组缺描述）。
+
+权限用依赖表达（`SuperUser`），**不要**在函数体里写 `if 用户是管理员 then ...`。
+查询参数用 `Query(...)` 声明约束，响应统一 `ApiResponse[T]`。
 
 ## 依赖
+
 上游：`schemas`、`services`、`core` ｜ 下游：无（最外层）

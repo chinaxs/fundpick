@@ -22,4 +22,4 @@
 - 换模型：只改 `.env`（`OPENAI_BASE_URL` / `AI_MODEL`），不改代码。
 
 ## 依赖
-上游：`services`、`core`、`db` ｜ 下游：`api.v1.endpoints.ai`
+上游：`services`、`core`、`db` ｜ 下游：`api.v1.admin.ai`

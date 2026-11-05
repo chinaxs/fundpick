@@ -25,7 +25,7 @@ from app.api.deps import CurrentUser, RequestIdDep
 from app.core.config import settings
 from app.schemas.common import ApiResponse
 
-router = APIRouter(prefix="/ai", tags=["AI 能力"])
+router = APIRouter(prefix="/ai", tags=["后台 · AI"])
 
 
 def _extract_tool_calls(messages: list[Any]) -> list[ToolCallTrace]:

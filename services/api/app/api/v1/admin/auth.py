@@ -8,7 +8,7 @@ from app.schemas.common import ApiResponse, MessageResponse
 from app.schemas.user import UserRead
 from app.services.auth import AuthService
 
-router = APIRouter(prefix="/auth", tags=["认证"])
+router = APIRouter(prefix="/auth", tags=["后台 · 认证"])
 
 
 @router.post("/login", summary="账号密码登录", response_model=ApiResponse[TokenResponse])

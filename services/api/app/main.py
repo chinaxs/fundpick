@@ -66,12 +66,44 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# ---------------------------------------------------------------- 文档分组
+# 顺序即 Swagger 的展示顺序：先门户（对外）、再后台（对内）、最后基础设施。
+# 每个 tag 带权限说明，避免联调时误调受限接口。
+OPENAPI_TAGS = [
+    {
+        "name": "门户 · 基金",
+        "description": "门户基金数据：筛选排行、详情、指标、净值。**匿名可访问，只读。**",
+    },
+    {"name": "门户 · 统计", "description": "门户首页聚合统计。**匿名可访问，只读。**"},
+    {"name": "门户 · 内容", "description": "门户研报/文章。**匿名可访问，只读。**"},
+    {
+        "name": "后台 · 认证",
+        "description": "后台账号登录、刷新令牌、当前用户、改密。",
+    },
+    {"name": "后台 · 用户", "description": "后台用户管理。**需要超管权限。**"},
+    {"name": "后台 · 内容", "description": "后台文章管理（增删改查、发布/撤回）。**需要登录。**"},
+    {"name": "后台 · 基金", "description": "后台基金数据管理与同步状态。**需要登录。**"},
+    {
+        "name": "后台 · AI",
+        "description": "AI 助手与内容质检。**需要登录；未配置模型密钥时返回 503。**",
+    },
+    {"name": "公共 · 健康检查", "description": "探活与数据库连通性。**无鉴权，供监控使用。**"},
+]
+
+
 # ---------------------------------------------------------------- 应用工厂
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.VERSION,
-        description="project_study 后端服务：后台管理 + 门户内容接口",
+        description=(
+            "project_study 后端服务。\n\n"
+            "接口按调用方分为三组，路径前缀即归属：\n\n"
+            "- `/api/v1/portal/**` —— 门户网站，匿名只读\n"
+            "- `/api/v1/admin/**` —— 后台管理，必须登录（部分需超管）\n"
+            "- `/api/v1/health/**` —— 探活，无鉴权\n"
+        ),
+        openapi_tags=OPENAPI_TAGS,
         docs_url="/docs" if not settings.is_production else None,
         redoc_url="/redoc" if not settings.is_production else None,
         openapi_url="/openapi.json" if not settings.is_production else None,

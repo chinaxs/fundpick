@@ -18,7 +18,7 @@ from app.schemas.fund import (
 )
 from app.services.fund import FundService
 
-router = APIRouter(prefix="/portal/funds", tags=["门户-基金"])
+router = APIRouter(prefix="/funds", tags=["门户 · 基金"])
 
 
 @router.get("", summary="基金筛选排行", response_model=ApiResponse[PageResult[FundListItem]])

@@ -24,7 +24,7 @@ def test_check_rules_passes_valid_article() -> None:
 
 
 async def test_ai_status_requires_login(client: AsyncClient) -> None:
-    resp = await client.get("/api/v1/ai/status")
+    resp = await client.get("/api/v1/admin/ai/status")
     assert resp.status_code == 401
 
 
@@ -36,7 +36,7 @@ async def test_ai_chat_without_key_returns_503(client: AsyncClient, monkeypatch)
     monkeypatch.setattr(settings, "OPENAI_API_KEY", "")
 
     login = await client.post(
-        "/api/v1/auth/login",
+        "/api/v1/admin/auth/login",
         json={"username": "admin", "password": "Admin@123456"},
     )
     if login.status_code != 200:  # 未初始化数据的环境跳过
@@ -44,7 +44,7 @@ async def test_ai_chat_without_key_returns_503(client: AsyncClient, monkeypatch)
     token = login.json()["data"]["access_token"]
 
     resp = await client.post(
-        "/api/v1/ai/chat",
+        "/api/v1/admin/ai/chat",
         json={"message": "现在有多少篇文章？"},
         headers={"Authorization": f"Bearer {token}"},
     )

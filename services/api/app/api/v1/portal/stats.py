@@ -9,7 +9,7 @@ from app.schemas.common import ApiResponse
 from app.schemas.stats import OverviewStats, ReturnDistribution
 from app.services.fund import FundService
 
-router = APIRouter(prefix="/portal/stats", tags=["门户-统计"])
+router = APIRouter(prefix="/stats", tags=["门户 · 统计"])
 
 
 @router.get("/overview", summary="市场概览", response_model=ApiResponse[OverviewStats])
