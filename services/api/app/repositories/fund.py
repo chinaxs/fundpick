@@ -94,14 +94,18 @@ class FundRepository(BaseRepository[Fund]):
         stmt = select(FundMetric).where(FundMetric.fund_id == fund_id).order_by(FundMetric.id)
         return list((await self.session.execute(stmt)).scalars().all())
 
-    async def navs(self, fund_id: int, limit: int = 500) -> list[FundNav]:
-        """取最近 N 个净值点（倒序取再反转，避免大表正序扫描）。"""
-        stmt = (
-            select(FundNav)
-            .where(FundNav.fund_id == fund_id)
-            .order_by(FundNav.nav_date.desc())
-            .limit(limit)
-        )
+    async def navs(
+        self, fund_id: int, limit: int = 2000, *, start_date: date | None = None
+    ) -> list[FundNav]:
+        """取净值序列（倒序取再反转，避免大表正序扫描）。
+
+        start_date 为 None 表示"成立以来"，此时不限制跨度，
+        仅用 limit 兜住极端情况（由 service 层做等距抽样，不会丢掉首尾）。
+        """
+        stmt = select(FundNav).where(FundNav.fund_id == fund_id)
+        if start_date is not None:
+            stmt = stmt.where(FundNav.nav_date >= start_date)
+        stmt = stmt.order_by(FundNav.nav_date.desc()).limit(limit)
         rows = list((await self.session.execute(stmt)).scalars().all())
         rows.reverse()
         return rows

@@ -13,6 +13,8 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=72, description="登录密码")
+    # 后台创建的用户默认是后台账号；门户注册走 /portal/auth/register，写死 False
+    is_staff: bool = True
     is_superuser: bool = False
 
 
@@ -24,6 +26,7 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=72)
     avatar_url: str | None = None
     is_active: bool | None = None
+    is_staff: bool | None = None
     is_superuser: bool | None = None
 
 
@@ -33,6 +36,7 @@ class UserRead(UserBase):
     id: int
     avatar_url: str | None = None
     is_active: bool
+    is_staff: bool
     is_superuser: bool
     last_login_at: datetime | None = None
     created_at: datetime

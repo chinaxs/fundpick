@@ -74,6 +74,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 # 每个 tag 带权限说明，避免联调时误调受限接口。
 OPENAPI_TAGS = [
     {
+        "name": "门户 · 会员",
+        "description": "门户注册与登录。**匿名可访问；注册出的账号不能登入后台。**",
+    },
+    {
         "name": "门户 · 基金",
         "description": "门户基金数据：筛选排行、详情、指标、净值。**匿名可访问，只读。**",
     },

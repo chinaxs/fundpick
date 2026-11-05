@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentUser, RequestIdDep, SessionDep
+from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.schemas.common import ApiResponse, PageResult
 from app.schemas.fund import FundListItem, FundQuery
 from app.services.fund import FundService
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/funds", tags=["后台 · 基金"])
 async def list_funds(
     session: SessionDep,
     request_id: RequestIdDep,
-    _: CurrentUser,
+    _: StaffUser,
     query: Annotated[FundQuery, Query()],
 ) -> ApiResponse[PageResult[FundListItem]]:
     result = await FundService(session).search(query)
@@ -27,7 +27,7 @@ async def list_funds(
 
 @router.get("/sync-status", summary="数据同步概况", response_model=ApiResponse[dict])
 async def sync_status(
-    session: SessionDep, request_id: RequestIdDep, _: CurrentUser
+    session: SessionDep, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[dict]:
     """给后台一个"数据是否新鲜"的直观指标。
 

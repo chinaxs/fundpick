@@ -31,6 +31,13 @@ class User(TimestampMixin, SoftDeleteMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1", comment="是否启用"
     )
+    is_staff: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        comment="是否后台账号（可登录 /admin）",
+    )
     is_superuser: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0", comment="是否超级管理员"
     )

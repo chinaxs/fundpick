@@ -76,6 +76,19 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 
 ## 接口清单
 
+### 门户 · 会员（公开）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/portal/auth/register` | 注册，成功后直接返回令牌（自动登录） |
+| POST | `/portal/auth/login` | 登录（用户名或邮箱 + 密码） |
+| POST | `/portal/auth/refresh` | 刷新令牌 |
+| GET | `/portal/auth/me` | 当前会员（不含 `is_staff` 等内部字段） |
+| POST | `/portal/auth/logout` | 语义化退出；JWT 无状态，客户端丢弃令牌即可 |
+
+**门户注册的账号不能登录后台**：`is_staff=False`，后台登录返回 401；
+即便持有有效 token，调用 `/admin/**` 也会得到 403。详见 [ADR-0009](adr/0009-portal-member-isolation.md)。
+
 ### 门户 · 基金（公开）
 
 | 方法 | 路径 | 说明 |
@@ -84,7 +97,7 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | GET | `/portal/funds/filters` | 筛选项字典（类型、风险、公司、区间、排序字段） |
 | GET | `/portal/funds/{code}` | 基金详情（公司、经理、费率、规模） |
 | GET | `/portal/funds/{code}/metrics` | 各区间指标（收益、回撤、波动、夏普、排名） |
-| GET | `/portal/funds/{code}/navs` | 净值序列（本地无数据时按需回填一次） |
+| GET | `/portal/funds/{code}/navs` | 净值序列，支持 `period`（1m/3m/6m/1y/3y/all）与 `limit`（超限等距抽样） |
 
 ### 门户 · 统计（公开）
 

@@ -89,6 +89,26 @@ class MetricRead(BaseModel):
     total: int | None = None
 
 
+class NavRange(StrEnum):
+    """净值曲线的时间区间。
+
+    与 `MetricPeriod` 分开：这里只关心"画多久的曲线"，
+    不涉及排行统计口径（后者含近1周、今年来等）。
+    """
+
+    M1 = "1m"
+    M3 = "3m"
+    M6 = "6m"
+    Y1 = "1y"
+    Y3 = "3y"
+    ALL = "all"
+
+    @property
+    def days(self) -> int | None:
+        """回溯天数；None 表示不限制（成立以来）。"""
+        return {"1m": 30, "3m": 90, "6m": 180, "1y": 365, "3y": 1095}.get(self.value)
+
+
 class NavPointRead(BaseModel):
     nav_date: date
     unit_nav: float

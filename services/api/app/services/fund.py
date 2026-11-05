@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy.dialects.mysql import insert
@@ -23,6 +24,7 @@ from app.schemas.fund import (
     FundSortBy,
     MetricRead,
     NavPointRead,
+    NavRange,
 )
 from app.schemas.stats import (
     DistributionBucket,
@@ -70,6 +72,32 @@ SORT_LABELS: dict[str, str] = {
     FundSortBy.SCALE: "规模",
     FundSortBy.NAV: "最新净值",
 }
+
+
+# SQL 层的读取上限：成立以来最多约 20 年 × 250 个交易日 ≈ 5000 点，
+# 留出余量后由 _downsample 按需压缩到展示点数。
+NAV_MAX_FETCH = 6000
+
+
+def _nav_start_date(period: NavRange) -> date | None:
+    days = period.days
+    if days is None:
+        return None
+    return date.today() - timedelta(days=days)
+
+
+def _downsample(points: list[NavPointRead], limit: int) -> list[NavPointRead]:
+    """等距抽样，保留首尾点。
+
+    为什么需要：成立以来可能几千个点，直接传给前端会让 JSON 膨胀到几百 KB。
+    为什么用等距而不是截断：截断会丢掉早期数据，让"成立以来"名不副实。
+    代价：极端单日波动可能被跳过，但折线宽度通常不足 1000px，
+    2000 点已远超像素密度，视觉与统计趋势不受影响。
+    """
+    if limit <= 0 or len(points) <= limit:
+        return points
+    step = (len(points) - 1) / (limit - 1)
+    return [points[round(i * step)] for i in range(limit)]
 
 
 class FundService:
@@ -152,16 +180,19 @@ class FundService:
             for m in rows
         ]
 
-    async def ensure_navs(self, code: str, limit: int = 500) -> list[NavPointRead]:
+    async def ensure_navs(
+        self, code: str, period: NavRange = NavRange.Y1, limit: int = 2000
+    ) -> list[NavPointRead]:
         """取净值序列；本地没有就实时回填一次。
 
         全市场 1 万只 × 数千条 ≈ 千万级行，全量预拉不划算（数小时），
         而详情页是"按需访问"，第一次访问时补这一只最经济。
         """
         fund = await self._require_fund(code)
-        rows = await self.funds.navs(fund.id, limit)
+        start = _nav_start_date(period)
+        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=start)
         if rows:
-            return self._to_nav_reads(rows)
+            return _downsample(self._to_nav_reads(rows), limit)
 
         points = await asyncio.to_thread(get_provider().nav_history, code)
         if not points:
@@ -187,8 +218,8 @@ class FundService:
             await self.session.execute(stmt)
         await self.session.commit()
 
-        rows = await self.funds.navs(fund.id, limit)
-        return self._to_nav_reads(rows)
+        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=start)
+        return _downsample(self._to_nav_reads(rows), limit)
 
     @staticmethod
     def _to_nav_reads(rows: list[FundNav]) -> list[NavPointRead]:
@@ -197,13 +228,12 @@ class FundService:
             for n in rows
         ]
 
-    async def navs(self, code: str, limit: int = 500) -> list[NavPointRead]:
+    async def navs(
+        self, code: str, period: NavRange = NavRange.Y1, limit: int = 2000
+    ) -> list[NavPointRead]:
         fund = await self._require_fund(code)
-        rows = await self.funds.navs(fund.id, limit)
-        return [
-            NavPointRead(nav_date=n.nav_date, unit_nav=n.unit_nav, daily_return=n.daily_return)
-            for n in rows
-        ]
+        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=_nav_start_date(period))
+        return _downsample(self._to_nav_reads(rows), limit)
 
     async def _require_fund(self, code: str) -> Fund:
         fund = await self.funds.get_by_code(code)

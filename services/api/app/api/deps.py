@@ -45,6 +45,21 @@ async def get_current_user(session: SessionDep, credentials: BearerDep) -> User:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_current_staff(user: CurrentUser) -> User:
+    """后台账号校验。
+
+    门户会员登录后同样持有有效 JWT。如果 `/admin/**` 只用 CurrentUser，
+    门户用户就能调用后台接口——所以后台路由必须用这个依赖。
+    超管隐含后台权限。
+    """
+    if not (user.is_staff or user.is_superuser):
+        raise ForbiddenError("需要后台账号")
+    return user
+
+
+StaffUser = Annotated[User, Depends(get_current_staff)]
+
+
 async def get_current_superuser(user: CurrentUser) -> User:
     if not user.is_superuser:
         raise ForbiddenError("需要管理员权限")

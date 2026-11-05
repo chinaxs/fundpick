@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.deps import CurrentUser, RequestIdDep, SessionDep
+from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, RefreshRequest, TokenResponse
 from app.schemas.common import ApiResponse, MessageResponse
 from app.schemas.user import UserRead
@@ -15,7 +15,9 @@ router = APIRouter(prefix="/auth", tags=["后台 · 认证"])
 async def login(
     payload: LoginRequest, session: SessionDep, request_id: RequestIdDep
 ) -> ApiResponse[TokenResponse]:
-    tokens = await AuthService(session).login(payload.username, payload.password)
+    tokens = await AuthService(session).login(
+        payload.username, payload.password, require_staff=True
+    )
     return ApiResponse(code=0, message="登录成功", data=tokens, request_id=request_id)
 
 
@@ -28,14 +30,14 @@ async def refresh(
 
 
 @router.get("/me", summary="获取当前登录用户", response_model=ApiResponse[UserRead])
-async def me(user: CurrentUser, request_id: RequestIdDep) -> ApiResponse[UserRead]:
+async def me(user: StaffUser, request_id: RequestIdDep) -> ApiResponse[UserRead]:
     return ApiResponse(data=UserRead.model_validate(user), request_id=request_id)
 
 
 @router.post("/change-password", summary="修改密码", response_model=ApiResponse[MessageResponse])
 async def change_password(
     payload: ChangePasswordRequest,
-    user: CurrentUser,
+    user: StaffUser,
     session: SessionDep,
     request_id: RequestIdDep,
 ) -> ApiResponse[MessageResponse]:

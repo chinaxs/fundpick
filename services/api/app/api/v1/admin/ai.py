@@ -21,7 +21,7 @@ from app.ai.schemas import (
     ReviewResponse,
     ToolCallTrace,
 )
-from app.api.deps import CurrentUser, RequestIdDep
+from app.api.deps import RequestIdDep, StaffUser
 from app.core.config import settings
 from app.schemas.common import ApiResponse
 
@@ -50,7 +50,7 @@ def _extract_text(message: Any) -> str:
 
 
 @router.get("/status", summary="AI 能力状态", response_model=ApiResponse[AIStatus])
-async def ai_status(_: CurrentUser) -> ApiResponse[AIStatus]:
+async def ai_status(_: StaffUser) -> ApiResponse[AIStatus]:
     return ApiResponse.ok(
         AIStatus(
             enabled=settings.AI_ENABLED,
@@ -63,7 +63,7 @@ async def ai_status(_: CurrentUser) -> ApiResponse[AIStatus]:
 
 @router.post("/chat", summary="内容运营助手对话", response_model=ApiResponse[ChatResponse])
 async def chat(
-    payload: ChatRequest, request_id: RequestIdDep, _: CurrentUser
+    payload: ChatRequest, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[ChatResponse]:
     if not settings.ai_ready:
         raise AINotConfiguredError()
@@ -98,7 +98,7 @@ async def chat(
     response_model=ApiResponse[ReviewResponse],
 )
 async def review(
-    payload: ReviewRequest, request_id: RequestIdDep, _: CurrentUser
+    payload: ReviewRequest, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[ReviewResponse]:
     if not settings.ai_ready:
         raise AINotConfiguredError()

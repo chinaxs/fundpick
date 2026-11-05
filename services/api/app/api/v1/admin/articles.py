@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentUser, RequestIdDep, SessionDep
+from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.models.article import ArticleStatus
 from app.schemas.article import ArticleCreate, ArticleListItem, ArticleRead, ArticleUpdate
 from app.schemas.common import ApiResponse, IdResponse, PageParams, PageResult
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/articles", tags=["后台 · 内容"])
 async def list_articles(
     session: SessionDep,
     request_id: RequestIdDep,
-    _: CurrentUser,
+    _: StaffUser,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: ArticleStatus | None = None,
@@ -37,7 +37,7 @@ async def list_articles(
 
 @router.post("", summary="创建文章", response_model=ApiResponse[ArticleRead], status_code=201)
 async def create_article(
-    payload: ArticleCreate, session: SessionDep, request_id: RequestIdDep, _: CurrentUser
+    payload: ArticleCreate, session: SessionDep, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[ArticleRead]:
     article = await ArticleService(session).create(payload)
     return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
@@ -45,7 +45,7 @@ async def create_article(
 
 @router.get("/{article_id}", summary="文章详情", response_model=ApiResponse[ArticleRead])
 async def get_article(
-    article_id: int, session: SessionDep, request_id: RequestIdDep, _: CurrentUser
+    article_id: int, session: SessionDep, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[ArticleRead]:
     article = await ArticleService(session).get_or_404(article_id)
     return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
@@ -57,7 +57,7 @@ async def update_article(
     payload: ArticleUpdate,
     session: SessionDep,
     request_id: RequestIdDep,
-    _: CurrentUser,
+    _: StaffUser,
 ) -> ApiResponse[ArticleRead]:
     article = await ArticleService(session).update(article_id, payload)
     return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
@@ -67,7 +67,7 @@ async def update_article(
     "/{article_id}", summary="删除文章（软删除）", response_model=ApiResponse[IdResponse]
 )
 async def delete_article(
-    article_id: int, session: SessionDep, request_id: RequestIdDep, _: CurrentUser
+    article_id: int, session: SessionDep, request_id: RequestIdDep, _: StaffUser
 ) -> ApiResponse[IdResponse]:
     await ArticleService(session).delete(article_id)
     return ApiResponse(data=IdResponse(id=article_id), request_id=request_id)

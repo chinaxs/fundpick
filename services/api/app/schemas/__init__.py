@@ -17,8 +17,10 @@ from app.schemas.fund import (
     FundSortBy,
     MetricRead,
     NavPointRead,
+    NavRange,
     SortOrder,
 )
+from app.schemas.portal_auth import PortalUserRead, RegisterRequest
 from app.schemas.user import UserCreate, UserQuery, UserRead, UserUpdate
 
 __all__ = [
@@ -39,9 +41,12 @@ __all__ = [
     "MessageResponse",
     "MetricRead",
     "NavPointRead",
+    "NavRange",
     "PageParams",
     "PageResult",
+    "PortalUserRead",
     "RefreshRequest",
+    "RegisterRequest",
     "SortOrder",
     "TokenResponse",
     "UserCreate",

@@ -15,6 +15,7 @@ from app.schemas.fund import (
     FundQuery,
     MetricRead,
     NavPointRead,
+    NavRange,
 )
 from app.services.fund import FundService
 
@@ -68,7 +69,12 @@ async def fund_navs(
     code: str,
     session: SessionDep,
     request_id: RequestIdDep,
-    limit: int = Query(default=500, ge=30, le=2000, description="返回最近 N 个净值点"),
+    period: Annotated[NavRange, Query(description="时间区间")] = NavRange.Y1,
+    limit: Annotated[int, Query(ge=30, le=2000, description="返回点数上限，超出时等距抽样")] = 800,
 ) -> ApiResponse[list[NavPointRead]]:
-    data = await FundService(session).ensure_navs(code, limit)
+    """按时间区间返回净值序列，供详情页曲线使用。
+
+    本地没有数据时会实时回填一次（首次访问约 1 秒，之后走本地）。
+    """
+    data = await FundService(session).ensure_navs(code, period, limit)
     return ApiResponse(data=data, request_id=request_id)

@@ -75,7 +75,7 @@ AkShareProvider.risk_metrics()    → fund_metrics（1y/3y/5y 的回撤/波动/�
 | GET | `/api/v1/portal/funds/filters` | 筛选项字典（类型、风险、公司、区间、排序字段） |
 | GET | `/api/v1/portal/funds/{code}` | 详情（含公司、经理、费率） |
 | GET | `/api/v1/portal/funds/{code}/metrics` | 各区县指标 |
-| GET | `/api/v1/portal/funds/{code}/navs?limit=` | 净值序列 |
+| GET | `/api/v1/portal/funds/{code}/navs?period=&limit=` | 净值序列，`period` 取 1m/3m/6m/1y/3y/all |
 | GET | `/api/v1/admin/funds` | 后台列表（需登录） |
 | GET | `/api/v1/admin/funds/sync-status` | 数据新鲜度（总数、净值行数、最新净值日） |
 
