@@ -9,7 +9,7 @@ cp .env.example .env      # 修改数据库账号密码
 uv sync                   # 安装依赖（含 dev）
 make migrate              # 建表
 make seed                 # 初始管理员 + 示例文章
-make dev                  # http://127.0.0.1:8000/docs
+make dev                  # http://127.0.0.1:8000/docs（另有 /docs/portal、/docs/admin）
 ```
 
 ## 目录

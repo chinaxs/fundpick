@@ -16,8 +16,8 @@ export default defineNuxtConfig({
       // 浏览器统一走同源的 /api/v1，由 Nitro 代理转发到后端。
       // 这样页面无论用 localhost 还是 127.0.0.1 打开、端口怎么变，都不会触发跨域。
       apiBase: '/api/v1',
-      // 页脚外部入口，生产用环境变量覆盖
-      apiDocsUrl: 'http://127.0.0.1:8000/docs',
+      // 页脚外部入口，生产用环境变量覆盖。文档按消费方拆分，门户只看 portal 那份
+      apiDocsUrl: 'http://127.0.0.1:8000/docs/portal',
       adminUrl: 'http://localhost:5174',
     },
   },

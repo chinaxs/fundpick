@@ -58,7 +58,7 @@ SSR 侧直连后端绝对地址。基址由 `useApiBase()` 按 `import.meta.serv
 | --- | --- | --- |
 | `NUXT_API_BASE` | `http://127.0.0.1:8000/api/v1` | 后端真实地址，供 SSR 与反代使用。容器部署填服务名 |
 | `NUXT_PUBLIC_API_BASE` | `/api/v1` | 浏览器基址，**必须保持相对路径** |
-| `NUXT_PUBLIC_API_DOCS_URL` | `http://127.0.0.1:8000/docs` | 页脚接口文档链接 |
+| `NUXT_PUBLIC_API_DOCS_URL` | `http://127.0.0.1:8000/docs/portal` | 页脚接口文档链接（门户那份） |
 | `NUXT_PUBLIC_ADMIN_URL` | `http://localhost:5174` | 页脚后台入口 |
 
 生产若由 Nginx 统一入口反代 `/api/v1`，可移除 Nitro 代理，但前端基址仍保持 `/api/v1`。

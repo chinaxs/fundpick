@@ -32,6 +32,15 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000',
           changeOrigin: true,
         },
+        // 接口文档与 schema 同样走同源，后台里点"接口文档"不会跨域
+        '/docs': {
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000',
+          changeOrigin: true,
+        },
+        '/openapi': {
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000',
+          changeOrigin: true,
+        },
       },
     },
     build: {

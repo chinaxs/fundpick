@@ -153,7 +153,18 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | GET | `/health` | 存活探针 |
 | GET | `/health/db` | 数据库连通性 |
 
-完整 OpenAPI：<http://127.0.0.1:8000/docs>（按上表分组展示）
+## 文档入口
+
+接口文档按消费方拆成两份，各自只展示自己那部分：
+
+| 文档 | 地址 | 范围 |
+| --- | --- | --- |
+| 门户接口文档 | <http://127.0.0.1:8000/docs/portal> | `/portal/**` 共 9 个路径 |
+| 后台接口文档 | <http://127.0.0.1:8000/docs/admin> | `/admin/**` 共 13 个路径 |
+| 全量文档 | <http://127.0.0.1:8000/docs> | 全部 24 个路径，排查跨端问题时用 |
+
+对应的 schema 分别是 `/openapi/portal.json`、`/openapi/admin.json`、`/openapi.json`。
+切分在 `app/core/openapi.py` 里按路径前缀完成，**不拆服务、不复制路由**，新增接口自动归入对应文档。
 
 ## 约定细节
 

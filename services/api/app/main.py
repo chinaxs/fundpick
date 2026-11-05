@@ -2,14 +2,16 @@
 
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -17,6 +19,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import get_logger, setup_logging
+from app.core.openapi import DOC_GROUPS, build_subset_schema
 from app.db.session import dispose_engine, engine
 
 logger = get_logger(__name__)
@@ -126,12 +129,67 @@ def create_app() -> FastAPI:
 
     _register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    _register_api_docs(app)
 
     @app.get("/", include_in_schema=False)
-    async def root() -> dict[str, str]:
-        return {"app": settings.APP_NAME, "docs": "/docs", "api": settings.API_V1_PREFIX}
+    async def root() -> dict[str, Any]:
+        return {
+            "app": settings.APP_NAME,
+            "api": settings.API_V1_PREFIX,
+            "docs": {
+                "portal": "/docs/portal",
+                "admin": "/docs/admin",
+                "all": "/docs",
+            },
+        }
 
     return app
+
+
+def _register_api_docs(app: FastAPI) -> None:
+    """注册按消费方切分的文档页：/docs/portal 与 /docs/admin。
+
+    与全量 /docs 并存——日常各看一份避免误调，排查跨端问题时仍可看全量。
+    必须在 include_router 之后调用，否则抓到的 schema 是空的。
+    """
+    if settings.is_production:
+        return
+
+    # 取一次完整 schema，再按前缀切片；切完注册的路由都 include_in_schema=False，
+    # 不会反过来污染全量文档。
+    full = app.openapi()
+
+    def make_openapi_endpoint(schema: dict[str, Any]) -> Callable[[], Awaitable[JSONResponse]]:
+        async def endpoint() -> JSONResponse:
+            return JSONResponse(schema)
+
+        return endpoint
+
+    def make_docs_endpoint(key: str, title: str) -> Callable[[], Awaitable[HTMLResponse]]:
+        async def endpoint() -> HTMLResponse:
+            return get_swagger_ui_html(
+                openapi_url=f"/openapi/{key}.json",
+                title=title,
+            )
+
+        return endpoint
+
+    for group in DOC_GROUPS:
+        schema = build_subset_schema(full, group)
+        app.add_api_route(
+            f"/openapi/{group.key}.json",
+            make_openapi_endpoint(schema),
+            methods=["GET"],
+            include_in_schema=False,
+            name=f"openapi_{group.key}",
+        )
+        app.add_api_route(
+            f"/docs/{group.key}",
+            make_docs_endpoint(group.key, group.title),
+            methods=["GET"],
+            include_in_schema=False,
+            name=f"docs_{group.key}",
+        )
 
 
 def _register_exception_handlers(app: FastAPI) -> None:

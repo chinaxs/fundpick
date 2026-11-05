@@ -73,21 +73,29 @@ async function handleLogout() {
           </el-breadcrumb>
         </div>
 
-        <el-dropdown trigger="click">
-          <span class="user">
-            <el-avatar :size="30">{{ authStore.displayName.slice(0, 1) }}</el-avatar>
-            <span class="user__name">{{ authStore.displayName }}</span>
-            <el-icon><CaretBottom /></el-icon>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item disabled>{{
-                authStore.currentUser?.email ?? '—'
-              }}</el-dropdown-item>
-              <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <div class="layout__header-right">
+          <!-- 后台接口文档与门户分开：这里只看 /admin/** 的部分 -->
+          <a class="doc-link" href="/docs/admin" target="_blank" rel="noreferrer">
+            <el-icon><Document /></el-icon>
+            <span>接口文档</span>
+          </a>
+
+          <el-dropdown trigger="click">
+            <span class="user">
+              <el-avatar :size="30">{{ authStore.displayName.slice(0, 1) }}</el-avatar>
+              <span class="user__name">{{ authStore.displayName }}</span>
+              <el-icon><CaretBottom /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item disabled>{{
+                  authStore.currentUser?.email ?? '—'
+                }}</el-dropdown-item>
+                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
 
       <el-main class="layout__main">
@@ -149,9 +157,28 @@ async function handleLogout() {
     align-items: center;
   }
 
+  &__header-right {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
   &__main {
     padding: 20px;
     background: $bg-page;
+  }
+}
+
+.doc-link {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: $text-secondary;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: $color-primary;
   }
 }
 

@@ -53,6 +53,18 @@ app/api/
 权限用依赖表达（`SuperUser`），**不要**在函数体里写 `if 用户是管理员 then ...`。
 查询参数用 `Query(...)` 声明约束，响应统一 `ApiResponse[T]`。
 
+## 文档
+
+按分组切成两份，见 `app/core/openapi.py`：
+
+| 地址 | 范围 |
+| --- | --- |
+| `/docs/portal` | `/portal/**` |
+| `/docs/admin` | `/admin/**` |
+| `/docs` | 全量（排查跨端问题时用） |
+
+新分组的 tag 要登记到 `app/main.py` 的 `OPENAPI_TAGS`，否则 Swagger 里缺描述。
+
 ## 依赖
 
 上游：`schemas`、`services`、`core` ｜ 下游：无（最外层）
