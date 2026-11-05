@@ -11,7 +11,7 @@ const cover = computed(() => props.article.cover_url || '')
   <NuxtLink :to="`/articles/${article.slug}`" class="card">
     <div class="card__cover">
       <img v-if="cover" :src="cover" :alt="article.title" loading="lazy" />
-      <span v-else class="card__placeholder">Study</span>
+      <span v-else class="card__placeholder">拾贝</span>
     </div>
 
     <div class="card__body">

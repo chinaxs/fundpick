@@ -113,10 +113,14 @@ useSeoMeta({
           </div>
         </div>
 
-        <div class="head__nav">
-          <span class="head__nav-label">单位净值</span>
-          <span class="head__nav-value num">{{ fund?.latest_nav?.toFixed(4) ?? '—' }}</span>
-          <span class="head__nav-date">{{ fund?.latest_nav_date ?? '暂无数据' }}</span>
+        <div class="head__side">
+          <FavoriteButton v-if="fund" :code="fund.code" />
+
+          <div class="head__nav">
+            <span class="head__nav-label">单位净值</span>
+            <span class="head__nav-value num">{{ fund?.latest_nav?.toFixed(4) ?? '—' }}</span>
+            <span class="head__nav-date">{{ fund?.latest_nav_date ?? '暂无数据' }}</span>
+          </div>
         </div>
       </header>
 
@@ -316,6 +320,12 @@ useSeoMeta({
   font-family: var(--font-num);
   font-size: 13px;
   color: var(--muted);
+}
+
+.head__side {
+  display: flex;
+  gap: 20px;
+  align-items: center;
 }
 
 .head__nav {

@@ -101,10 +101,13 @@ const boards = computed(() => [
 ])
 
 useSeoMeta({
-  title: 'Study 基金 · 用数据挑基金',
+  title: '拾贝 FundPick · 用数据挑基金',
   description:
     '覆盖全市场公募基金的筛选与排行工具。按区间收益、最大回撤、夏普比率、规模多维度筛选，每个排名可追溯、口径可复算。',
 })
+
+// 首页标题已含品牌，关闭全局 titleTemplate，避免拼成"... · 拾贝 · 拾贝"
+useHead({ titleTemplate: null })
 </script>
 
 <template>

@@ -8,11 +8,12 @@ const config = useRuntimeConfig()
     <div class="container footer__inner">
       <div class="footer__brand-col">
         <div class="footer__brand">
-          <span class="footer__mark">S</span>
-          <span>Study 基金</span>
+          <BrandMark :size="28" class="footer__mark" />
+          <span>拾贝</span>
         </div>
         <p class="footer__desc">
-          全市场公募基金数据筛选与分析。所有指标基于公开净值计算，排名可追溯、口径可复算。
+          拾贝 FundPick ·
+          从全市场公募基金里，筛出值得看的那几只。所有指标基于公开净值计算，排名可追溯、口径可复算。
         </p>
       </div>
 
@@ -40,7 +41,7 @@ const config = useRuntimeConfig()
 
     <div class="footer__legal">
       <div class="container footer__legal-inner">
-        <span>© {{ new Date().getFullYear() }} Study. All rights reserved.</span>
+        <span>© {{ new Date().getFullYear() }} 拾贝 FundPick</span>
         <span class="footer__note">数据仅供参考，不构成投资建议</span>
       </div>
     </div>
@@ -75,15 +76,7 @@ const config = useRuntimeConfig()
 }
 
 .footer__mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--brand);
-  border-radius: 8px;
+  color: var(--brand);
 }
 
 .footer__desc {

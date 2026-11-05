@@ -15,7 +15,7 @@ const totalPages = computed(() => {
 
 useSeoMeta({
   title: '资讯',
-  description: 'Study 门户资讯列表：行业洞察与公司动态。',
+  description: '拾贝市场观察：基金市场的结构性变化与数据解读。',
 })
 </script>
 

@@ -40,6 +40,13 @@ export function useAuth() {
   })
 
   const isLoggedIn = computed(() => user.value !== null)
+
+  /** 需要登录的请求统一带这个头 */
+  const authHeaders = computed<Record<string, string>>(() => {
+    const headers: Record<string, string> = {}
+    if (accessToken.value) headers.Authorization = `Bearer ${accessToken.value}`
+    return headers
+  })
   const displayName = computed(() => user.value?.full_name || user.value?.username || '会员')
   const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
 
@@ -140,6 +147,7 @@ export function useAuth() {
     user,
     ready,
     isLoggedIn,
+    authHeaders,
     displayName,
     avatarText,
     dialogVisible,

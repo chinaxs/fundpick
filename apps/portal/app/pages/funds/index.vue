@@ -14,6 +14,10 @@ interface FilterState extends FundQuery {
 }
 
 /** 筛选状态：初始值从 URL 读，保证链接可分享、刷新不丢条件 */
+// 登录时拉取一次关注集合，供每行星标使用（未登录会直接跳过）
+const { load: loadFavorites } = useFavorites()
+await loadFavorites()
+
 const state = reactive<FilterState>({
   keyword: (route.query.keyword as string) ?? '',
   type: (route.query.type as FundType) || undefined,
@@ -200,6 +204,7 @@ useSeoMeta({
           <thead>
             <tr>
               <th class="col-rank">#</th>
+              <th class="col-fav" aria-label="关注"></th>
               <th class="col-name">基金</th>
               <th>类型</th>
               <th class="ta-r">单位净值</th>
@@ -213,6 +218,9 @@ useSeoMeta({
           <tbody>
             <tr v-for="(fund, index) in data.items" :key="fund.id">
               <td class="col-rank num">{{ (state.page - 1) * state.page_size + index + 1 }}</td>
+              <td class="col-fav">
+                <FavoriteButton :code="fund.code" variant="icon" />
+              </td>
 
               <td class="col-name">
                 <NuxtLink :to="`/funds/${fund.code}`" class="fund">
@@ -452,6 +460,12 @@ useSeoMeta({
 
 .fund-table {
   min-width: 940px;
+}
+
+.col-fav {
+  width: 40px;
+  padding-right: 0 !important;
+  text-align: center;
 }
 
 .col-rank {

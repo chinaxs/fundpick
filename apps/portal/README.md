@@ -1,6 +1,6 @@
-# @project/portal — 门户网站
+# 拾贝门户（@project/portal）
 
-Nuxt 4（SSR）· TypeScript。面向搜索引擎与首屏体验的基金数据站，数据来自 FastAPI 的 `/portal/*` 公开接口。
+Nuxt 4（SSR）· TypeScript。面向搜索引擎与首屏体验的基金数据站，数据来自 FastAPI 的 `/portal/**` 接口。
 
 ## 启动
 
@@ -17,7 +17,8 @@ app/
 ├── assets/css/main.css     全局样式与设计变量
 ├── components/             AppHeader · AppFooter · ArticleCard
 │                           FundNavChart · TypeBars · ReturnHistogram（自动导入）
-├── composables/            usePortalApi · useFundApi（数据获取）· useAuth（登录态）
+├── composables/            usePortalApi · useFundApi（数据获取）
+│                           useAuth（登录态）· useFavorites（自选）
 ├── layouts/default.vue     Header + 内容 + Footer
 ├── pages/                  文件路由
 │   ├── index.vue           首页（市场概览 + 榜单）
@@ -49,6 +50,15 @@ SSR 时于服务端发起请求，客户端激活后复用同一份 payload，�
 - 门户注册的账号 `is_staff=False`，**不能登录后台**，也调不动 `/admin/**`。
 
 详见 [ADR-0009](../../docs/adr/0009-portal-member-isolation.md)。
+
+## 我的关注
+
+`useFavorites()` 维护一份关注代码集合（`useState`），筛选页每行星标、详情页关注按钮
+都读它，只请求一次 `/portal/favorites/codes`。
+
+- 切换关注用**乐观更新**：先改本地集合让 UI 立刻响应，请求失败再整体回滚。
+- 未登录点击关注会唤起登录弹窗（`openAuth('login')`），不会静默失败。
+- 退出登录时调用 `reset()` 清空，避免下一个人看到上一个人的星标。
 
 Element Plus 通过 `@element-plus/nuxt` 按需引入，只用在弹窗与菜单，
 不整包进首屏；主站视觉仍由 `assets/css/main.css` 的设计变量控制。

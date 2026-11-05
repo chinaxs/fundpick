@@ -112,9 +112,9 @@ watch(dialogVisible, (visible) => {
   >
     <template #header>
       <div class="auth-head">
-        <div class="auth-head__mark">S</div>
+        <BrandMark :size="38" class="auth-head__mark" />
         <div>
-          <h2 class="auth-head__title">Study 基金</h2>
+          <h2 class="auth-head__title">拾贝 FundPick</h2>
           <p class="auth-head__sub">登录后可关注基金、保存筛选条件</p>
         </div>
       </div>
@@ -243,16 +243,7 @@ watch(dialogVisible, (visible) => {
 }
 
 .auth-head__mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--brand);
-  border-radius: 11px;
+  color: var(--brand);
 }
 
 .auth-head__title {

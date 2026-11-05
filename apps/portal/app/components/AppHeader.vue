@@ -11,10 +11,25 @@ const navs = [
 const menuOpen = ref(false)
 
 const { isLoggedIn, displayName, avatarText, user, openAuth, logout } = useAuth()
+const { count: favCount, load: loadFavorites } = useFavorites()
+
+// 登录后拉一次，用于菜单里显示关注数量
+watch(
+  isLoggedIn,
+  (v) => {
+    if (v) loadFavorites()
+  },
+  { immediate: true },
+)
 
 async function handleCommand(command: string) {
+  if (command === 'favorites') {
+    await navigateTo('/favorites')
+    return
+  }
   if (command === 'logout') {
     await logout()
+    useFavorites().reset()
     ElMessage.success('已退出登录')
   }
 }
@@ -24,8 +39,8 @@ async function handleCommand(command: string) {
   <header class="header">
     <div class="container header__inner">
       <NuxtLink to="/" class="brand">
-        <span class="brand__mark">S</span>
-        <span class="brand__name">Study 基金</span>
+        <BrandMark :size="32" class="brand__mark" />
+        <span class="brand__name">拾贝</span>
       </NuxtLink>
 
       <nav class="nav" :class="{ 'nav--open': menuOpen }">
@@ -53,7 +68,10 @@ async function handleCommand(command: string) {
               <el-dropdown-item disabled>
                 {{ user?.email || user?.username }}
               </el-dropdown-item>
-              <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+              <el-dropdown-item divided command="favorites">
+                我的关注（{{ favCount }}）
+              </el-dropdown-item>
+              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -107,14 +125,7 @@ async function handleCommand(command: string) {
 }
 
 .brand__mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  font-size: 16px;
-  color: #fff;
-  background: var(--brand);
-  border-radius: 9px;
+  color: var(--brand);
 }
 
 .nav {
