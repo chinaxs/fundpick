@@ -122,4 +122,42 @@ pnpm dev:api     # FastAPI: 8000
 - **分层**：`router → service → repository → model`，路由不写业务逻辑，仓储不写业务规则。
 - **类型共享**：后端改 schema 时同步 `packages/shared/src/types/api.ts`。
 
-更多： [架构说明](docs/architecture.md) · [开发规范](docs/development.md) · [接口约定](docs/api.md)
+## 文档导航
+
+**动手写代码前，建议按这个顺序读：**
+
+| 文档 | 什么时候看 |
+| --- | --- |
+| [代码规范](docs/CONVENTIONS.md) | 写第一行业务代码之前（含分层规则、评审清单、屎山预警） |
+| [模块地图](docs/MODULES.md) | 不确定功能该放哪儿时 |
+| [复用优先](docs/REUSE.md) | 准备造轮子/引第三方库之前 |
+| [架构说明](docs/architecture.md) | 想理解整体数据流 |
+| [接口约定](docs/api.md) | 前后端联调、改契约 |
+| [开发规范](docs/development.md) | 新增模块/页面、迁移、提交规范 |
+| [AI 能力](docs/ai.md) | 接入大模型、加工具、加工作流 |
+| [架构决策](docs/adr/) | 想质疑"为什么这么选" |
+
+**每个模块目录下都有 README**，说明职责边界与扩展方式，例如：
+
+- 后端：[api](services/api/app/api/README.md) · [services](services/api/app/services/README.md) · [repositories](services/api/app/repositories/README.md) · [models](services/api/app/models/README.md) · [schemas](services/api/app/schemas/README.md) · [core](services/api/app/core/README.md) · [db](services/api/app/db/README.md) · [ai](services/api/app/ai/README.md) · [alembic](services/api/alembic/README.md)
+- 后台：[api](apps/admin/src/api/README.md) · [stores](apps/admin/src/stores/README.md) · [views](apps/admin/src/views/README.md) · [layouts](apps/admin/src/layouts/README.md) · [router](apps/admin/src/router/README.md) · [styles](apps/admin/src/styles/README.md)
+- 门户：[pages](apps/portal/app/pages/README.md) · [components](apps/portal/app/components/README.md) · [composables](apps/portal/app/composables/README.md)
+- 共享：[shared](packages/shared/src/README.md)
+
+## AI 能力（预留）
+
+服务端已预置 LangChain / LangGraph / deepagents 三层能力，默认关闭，不影响启动：
+
+```bash
+# services/api/.env
+AI_ENABLED=true
+OPENAI_API_KEY=sk-xxx
+OPENAI_BASE_URL=https://api.deepseek.com/v1   # 任意 OpenAI 兼容端点
+AI_MODEL=deepseek-chat
+```
+
+- 智能体对话：`POST /api/v1/ai/chat`（内容助手，可查文章、给选题建议）
+- 确定性工作流：`POST /api/v1/ai/review`（规则校验 + 模型建议）
+- 状态查询：`GET /api/v1/ai/status`
+
+设计原则、加工具/加流程的方法见 [docs/ai.md](docs/ai.md)。
