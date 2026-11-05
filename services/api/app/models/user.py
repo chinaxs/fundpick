@@ -1,7 +1,6 @@
 """用户模型。"""
 
 from datetime import datetime
-from typing import ClassVar
 
 from sqlalchemy import BigInteger, Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,7 +12,7 @@ class User(TimestampMixin, SoftDeleteMixin, Base):
     """后台账号 / 门户会员统一用户表。"""
 
     __tablename__ = "users"
-    __table_args__: ClassVar[dict[str, str]] = {"comment": "用户表"}
+    __table_args__ = {"comment": "用户表"}
 
     id: Mapped[int] = mapped_column(
         BigInteger, primary_key=True, autoincrement=True, comment="主键"

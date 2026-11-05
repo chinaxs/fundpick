@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import ClassVar
 
 from sqlalchemy import BigInteger, DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,7 +19,7 @@ class Article(TimestampMixin, SoftDeleteMixin, Base):
     """门户网站资讯文章，供后台维护、门户展示。"""
 
     __tablename__ = "articles"
-    __table_args__: ClassVar[dict[str, str]] = {"comment": "文章表"}
+    __table_args__ = {"comment": "文章表"}
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False, comment="标题")

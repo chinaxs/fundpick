@@ -8,6 +8,17 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.common import ApiResponse, IdResponse, MessageResponse, PageParams, PageResult
+from app.schemas.fund import (
+    FilterOption,
+    FilterOptions,
+    FundDetail,
+    FundListItem,
+    FundQuery,
+    FundSortBy,
+    MetricRead,
+    NavPointRead,
+    SortOrder,
+)
 from app.schemas.user import UserCreate, UserQuery, UserRead, UserUpdate
 
 __all__ = [
@@ -17,12 +28,21 @@ __all__ = [
     "ArticleRead",
     "ArticleUpdate",
     "ChangePasswordRequest",
+    "FilterOption",
+    "FilterOptions",
+    "FundDetail",
+    "FundListItem",
+    "FundQuery",
+    "FundSortBy",
     "IdResponse",
     "LoginRequest",
     "MessageResponse",
+    "MetricRead",
+    "NavPointRead",
     "PageParams",
     "PageResult",
     "RefreshRequest",
+    "SortOrder",
     "TokenResponse",
     "UserCreate",
     "UserQuery",

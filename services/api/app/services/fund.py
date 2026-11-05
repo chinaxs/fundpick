@@ -1,0 +1,172 @@
+"""基金业务逻辑：查询组装、详情、筛选项字典。"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundError
+from app.models.fund import Fund, FundType, RiskLevel
+from app.repositories.fund import FundRepository
+from app.schemas.common import PageResult
+from app.schemas.fund import (
+    FilterOption,
+    FilterOptions,
+    FundDetail,
+    FundListItem,
+    FundQuery,
+    FundSortBy,
+    MetricRead,
+    NavPointRead,
+)
+
+TYPE_LABELS: dict[str, str] = {
+    FundType.STOCK: "股票型",
+    FundType.HYBRID: "混合型",
+    FundType.BOND: "债券型",
+    FundType.INDEX: "指数型",
+    FundType.QDII: "QDII",
+    FundType.MONEY: "货币型",
+    FundType.FOF: "FOF",
+    FundType.OTHER: "其他",
+}
+
+RISK_LABELS: dict[str, str] = {
+    RiskLevel.LOW: "低风险",
+    RiskLevel.MID_LOW: "中低风险",
+    RiskLevel.MID: "中风险",
+    RiskLevel.MID_HIGH: "中高风险",
+    RiskLevel.HIGH: "高风险",
+}
+
+PERIOD_LABELS: dict[str, str] = {
+    "1w": "近1周",
+    "1m": "近1月",
+    "3m": "近3月",
+    "6m": "近6月",
+    "1y": "近1年",
+    "2y": "近2年",
+    "3y": "近3年",
+    "ytd": "今年来",
+    "all": "成立来",
+}
+
+SORT_LABELS: dict[str, str] = {
+    FundSortBy.RETURN: "区间收益",
+    FundSortBy.SHARPE: "夏普比率",
+    FundSortBy.MAX_DRAWDOWN: "最大回撤",
+    FundSortBy.VOLATILITY: "年化波动率",
+    FundSortBy.SCALE: "规模",
+    FundSortBy.NAV: "最新净值",
+}
+
+
+class FundService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.funds = FundRepository(session)
+
+    # ---------------------------------------------------------- 列表
+    async def search(self, query: FundQuery) -> PageResult[FundListItem]:
+        rows, total = await self.funds.search(query)
+        items = [self._to_list_item(row) for row in rows]
+        return PageResult(items=items, total=total, page=query.page, page_size=query.page_size)
+
+    @staticmethod
+    def _to_list_item(row: tuple[Any, ...]) -> FundListItem:
+        fund, metric, company_name, manager_name = row
+        return FundListItem(
+            id=fund.id,
+            code=fund.code,
+            name=fund.name,
+            type=fund.type,
+            risk_level=fund.risk_level,
+            company_name=company_name,
+            manager_name=manager_name,
+            latest_nav=fund.latest_nav,
+            latest_nav_date=fund.latest_nav_date,
+            scale=fund.scale,
+            fee_rate=fund.management_fee,
+            return_rate=metric.return_rate if metric else None,
+            max_drawdown=metric.max_drawdown if metric else None,
+            volatility=metric.volatility if metric else None,
+            sharpe=metric.sharpe if metric else None,
+            rank=metric.rank if metric else None,
+            total=metric.total if metric else None,
+        )
+
+    # ---------------------------------------------------------- 详情
+    async def detail(self, code: str) -> FundDetail:
+        row = await self.funds.get_detail(code)
+        if row is None:
+            raise NotFoundError("基金不存在")
+        fund, company_name, manager = row
+        return FundDetail(
+            id=fund.id,
+            code=fund.code,
+            name=fund.name,
+            full_name=fund.full_name,
+            type=fund.type,
+            risk_level=fund.risk_level,
+            status=fund.status,
+            company_name=company_name,
+            manager_name=manager.name if manager else None,
+            manager_tenure_years=manager.tenure_years if manager else None,
+            manager_scale=manager.managed_scale if manager else None,
+            manager_best_return=manager.best_return if manager else None,
+            latest_nav=fund.latest_nav,
+            latest_nav_date=fund.latest_nav_date,
+            scale=fund.scale,
+            fee_rate=fund.management_fee,
+            custody_fee=fund.custody_fee,
+            inception_date=fund.inception_date,
+            is_index=fund.is_index,
+            tracking_index=fund.tracking_index,
+        )
+
+    async def metrics(self, code: str) -> list[MetricRead]:
+        fund = await self._require_fund(code)
+        rows = await self.funds.metrics(fund.id)
+        return [
+            MetricRead(
+                period=m.period,
+                return_rate=m.return_rate,
+                annual_return=m.annual_return,
+                max_drawdown=m.max_drawdown,
+                volatility=m.volatility,
+                sharpe=m.sharpe,
+                rank=m.rank,
+                total=m.total,
+            )
+            for m in rows
+        ]
+
+    async def navs(self, code: str, limit: int = 500) -> list[NavPointRead]:
+        fund = await self._require_fund(code)
+        rows = await self.funds.navs(fund.id, limit)
+        return [
+            NavPointRead(nav_date=n.nav_date, unit_nav=n.unit_nav, daily_return=n.daily_return)
+            for n in rows
+        ]
+
+    async def _require_fund(self, code: str) -> Fund:
+        fund = await self.funds.get_by_code(code)
+        if fund is None:
+            raise NotFoundError("基金不存在")
+        return fund
+
+    # ---------------------------------------------------------- 字典
+    async def filter_options(self) -> FilterOptions:
+        companies = await self.funds.companies()
+        return FilterOptions(
+            types=[FilterOption(value=k, label=v) for k, v in TYPE_LABELS.items()],
+            risk_levels=[FilterOption(value=k, label=v) for k, v in RISK_LABELS.items()],
+            companies=[FilterOption(value=c.id, label=c.name) for c in companies],
+            periods=[FilterOption(value=k, label=v) for k, v in PERIOD_LABELS.items()],
+            sort_fields=[FilterOption(value=k, label=v) for k, v in SORT_LABELS.items()],
+        )
+
+    async def overview(self) -> dict[str, int]:
+        """首页概览：基金总数。"""
+        return {"total_funds": await self.funds.count_all()}
