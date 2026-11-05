@@ -4,6 +4,23 @@
 | 文件 | 作用 |
 | --- | --- |
 | `usePortalApi.ts` | `useApiBase()` / `useArticleList(params)` / `useArticleDetail(slug)` |
+| `useFundApi.ts` | `useFundList` / `useFundFilters` / `useFundDetail` / `useFundMetrics` / `useFundNavs` / `useOverviewStats` / `useReturnDistribution` |
+
+## 请求链路（改之前必读）
+
+```
+浏览器  --/api/v1/...-->  Nitro 反向代理  --http://127.0.0.1:8000/api/v1/...-->  FastAPI
+SSR     ----------------- 直连后端 -------------------------------------->  FastAPI
+```
+
+`useApiBase()` 按运行环境返回不同基址：
+
+- **SSR**：`config.apiBase`（绝对地址，服务端没有同源策略）
+- **浏览器**：`config.public.apiBase` = `/api/v1`（同源，由 `routeRules` 代理）
+
+**不要把浏览器基址改成绝对地址。** `localhost`、`127.0.0.1`、`[::1]` 在浏览器里是
+不同的源，一旦跨域就必须穷举 CORS 白名单，漏一个组合整页报错，且 `curl` 测不出来
+（详见 [ADR-0007](../../../../docs/adr/0007-same-origin-proxy.md)）。
 
 ## 为什么用 `useAsyncData` 而不是 `useFetch`
 

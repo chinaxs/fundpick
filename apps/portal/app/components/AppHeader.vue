@@ -7,6 +7,9 @@ const navs = [
 ]
 
 const menuOpen = ref(false)
+
+// 后台入口地址随环境变化，不硬编码本机地址
+const config = useRuntimeConfig()
 </script>
 
 <template>
@@ -30,7 +33,7 @@ const menuOpen = ref(false)
       </nav>
 
       <div class="header__actions">
-        <a class="header__admin" href="http://localhost:5174" target="_blank" rel="noreferrer">
+        <a class="header__admin" :href="config.public.adminUrl" target="_blank" rel="noreferrer">
           管理后台
         </a>
         <button class="burger" type="button" @click="menuOpen = !menuOpen">

@@ -9,9 +9,23 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
+    // 服务端私有：SSR 阶段由 Node 直连后端，不受浏览器同源策略约束。
+    // 生产可用 NUXT_API_BASE 覆盖（如容器内 http://api:8000/api/v1）。
+    apiBase: 'http://127.0.0.1:8000/api/v1',
     public: {
-      // 服务端渲染与客户端共用；生产环境通过 NUXT_PUBLIC_API_BASE 覆盖
-      apiBase: 'http://127.0.0.1:8000/api/v1',
+      // 浏览器统一走同源的 /api/v1，由 Nitro 代理转发到后端。
+      // 这样页面无论用 localhost 还是 127.0.0.1 打开、端口怎么变，都不会触发跨域。
+      apiBase: '/api/v1',
+      // 页脚外部入口，生产用环境变量覆盖
+      apiDocsUrl: 'http://127.0.0.1:8000/docs',
+      adminUrl: 'http://localhost:5174',
+    },
+  },
+
+  // 反向代理：把浏览器的 /api/v1/** 转发到 FastAPI，避免 CORS
+  routeRules: {
+    '/api/v1/**': {
+      proxy: `${process.env.NUXT_API_BASE || 'http://127.0.0.1:8000/api/v1'}/**`,
     },
   },
 

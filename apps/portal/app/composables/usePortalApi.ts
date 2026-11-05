@@ -8,8 +8,19 @@
 import type { MaybeRef } from 'vue'
 import type { ApiResponse, Article, ArticleListItem, PageResult } from '@project/shared'
 
+/**
+ * 请求基址。
+ *
+ * - SSR：Node 直连后端绝对地址（服务端没有同源策略）。
+ * - 浏览器：走同源的 `/api/v1`，由 Nitro 反向代理转发。
+ *
+ * 早期版本让浏览器也直连 `http://127.0.0.1:8000`，导致 CORS 白名单必须
+ * 精确枚举每一个 `协议+主机+端口` 组合——`localhost`、`127.0.0.1`、`[::1]`
+ * 在浏览器里是三个不同的源，漏配任何一个就整页报错。改走代理后不再依赖白名单。
+ */
 export function useApiBase() {
-  return useRuntimeConfig().public.apiBase
+  const config = useRuntimeConfig()
+  return import.meta.server ? config.apiBase : config.public.apiBase
 }
 
 interface ArticleListParams {

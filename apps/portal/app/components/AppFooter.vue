@@ -1,3 +1,8 @@
+<script setup lang="ts">
+// 外部入口地址随环境变化，避免把本机地址硬编码进产物
+const config = useRuntimeConfig()
+</script>
+
 <template>
   <footer class="footer">
     <div class="container footer__inner">
@@ -27,8 +32,8 @@
 
         <div class="footer__col">
           <div class="footer__title">资源</div>
-          <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer">接口文档</a>
-          <a href="http://localhost:5174" target="_blank" rel="noreferrer">管理后台</a>
+          <a :href="config.public.apiDocsUrl" target="_blank" rel="noreferrer">接口文档</a>
+          <a :href="config.public.adminUrl" target="_blank" rel="noreferrer">管理后台</a>
         </div>
       </div>
     </div>
