@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:3000"
 
     # ---- 安全 ----
     SECRET_KEY: str = "change-me"
@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_ECHO: bool = False
+
+    # ---- AI（LangChain / LangGraph / deepagents）----
+    # 未配置 key 时接口返回 503，不影响服务启动
+    AI_ENABLED: bool = False
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_TEMPERATURE: float = 0.2
+    AI_MAX_TOKENS: int | None = None
+    AI_TIMEOUT: int = 60
+    # 智能体最多推理轮数，防止死循环
+    AI_MAX_ITERATIONS: int = 12
 
     # ---- 日志 ----
     LOG_LEVEL: str = "INFO"
@@ -74,6 +86,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
+
+    @property
+    def ai_ready(self) -> bool:
+        """AI 能力是否可用：开关打开且配置了 key。"""
+        return self.AI_ENABLED and bool(self.OPENAI_API_KEY)
 
 
 @lru_cache

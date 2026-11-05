@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from app.models.article import Article, ArticleStatus
 from app.repositories.base import BaseRepository
@@ -36,6 +36,15 @@ class ArticleRepository(BaseRepository[Article]):
             stmt = stmt.where(or_(Article.title.like(like), Article.summary.like(like)))
         stmt = stmt.order_by(Article.published_at.desc())
         return await self.paginate(stmt, params)
+
+    async def stats(self) -> dict[str, int]:
+        """文章总量与已发布数量（供 AI 工具 / 仪表盘使用）。"""
+        base = select(func.count()).select_from(Article).where(Article.deleted_at.is_(None))
+        total = (await self.session.execute(base)).scalar_one()
+        published = (
+            await self.session.execute(base.where(Article.status == ArticleStatus.PUBLISHED))
+        ).scalar_one()
+        return {"total": int(total), "published": int(published)}
 
     async def admin_list(
         self, params: PageParams, status: ArticleStatus | None = None, keyword: str | None = None

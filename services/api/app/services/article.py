@@ -25,15 +25,26 @@ class ArticleService:
             raise NotFoundError("文章不存在")
         return article
 
-    async def get_published_by_slug(self, slug: str) -> Article:
+    async def get_published_by_slug(self, slug: str, *, count_view: bool = True) -> Article:
+        """读取已发布文章。
+
+        count_view=False 用于内部调用（如 AI 工具），避免机器阅读污染浏览统计。
+        """
         article = await self.articles.get_by_slug(slug)
         if not article or article.status != ArticleStatus.PUBLISHED:
             raise NotFoundError("文章不存在或未发布")
+
+        if not count_view:
+            return article
+
         article.view_count += 1
         await self.session.commit()
         # updated_at 由数据库 onupdate 生成，commit 后属性过期，异步下必须显式刷新
         await self.session.refresh(article)
         return article
+
+    async def stats(self) -> dict[str, int]:
+        return await self.articles.stats()
 
     async def _ensure_unique_slug(self, slug: str, exclude_id: int | None = None) -> str:
         """slug 冲突时自动追加序号。"""
