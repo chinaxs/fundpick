@@ -1,6 +1,9 @@
 # project_study
 
-一套可直接演进的企业级前后端分离工程骨架：**Vue 后台管理 + Nuxt 门户 + FastAPI 服务**，使用 pnpm workspace 组成 monorepo，数据库为 MySQL。
+**基金分析网站**：Vue 后台管理 + Nuxt 门户 + FastAPI 服务，pnpm workspace 组成 monorepo，数据库 MySQL。
+
+当前第一期已实现「全市场基金筛选与排行」：覆盖 28,277 只公募基金，支持按区间收益、回撤、夏普、规模排序，
+门户提供筛选页与详情页（净值曲线、区间表现），后台提供数据管理与同步状态。详见 [基金模块文档](docs/fund-module.md)。
 
 ## 技术栈
 
@@ -10,6 +13,7 @@
 | 门户网站 | `apps/portal` | Nuxt 4 · SSR · TypeScript（SEO 友好） |
 | 后端服务 | `services/api` | FastAPI · SQLAlchemy 2.x（异步）· Alembic · Pydantic v2 |
 | 共享层 | `packages/shared` | 前后端共用的类型定义、常量、工具函数 |
+| 数据接入 | `services/api/app/datasources` | 数据源抽象（当前 AkShare，可替换） |
 | 数据库 | MySQL | 库名 `test_study`，utf8mb4 |
 
 ## 目录结构
@@ -128,6 +132,7 @@ pnpm dev:api     # FastAPI: 8000
 
 | 文档 | 什么时候看 |
 | --- | --- |
+| [基金模块](docs/fund-module.md) | 理解基金数据模型、采集链路、接口与页面 |
 | [代码规范](docs/CONVENTIONS.md) | 写第一行业务代码之前（含分层规则、评审清单、屎山预警） |
 | [模块地图](docs/MODULES.md) | 不确定功能该放哪儿时 |
 | [复用优先](docs/REUSE.md) | 准备造轮子/引第三方库之前 |

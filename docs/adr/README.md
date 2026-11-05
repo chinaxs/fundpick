@@ -10,3 +10,4 @@
 | [0003](0003-layered-async-backend.md) | 后端分四层 + 全异步 SQLAlchemy | 已采纳 | 2026-11-05 |
 | [0004](0004-ai-stack.md) | AI 采用 LangChain + LangGraph + deepagents 分层 | 已采纳 | 2026-11-05 |
 | [0005](0005-package-boundaries.md) | shared 包不依赖任何框架 | 已采纳 | 2026-11-05 |
+| [0006](0006-fund-data-source.md) | 第一期基金数据源用 AkShare（临时，商用前必换） | 已采纳 | 2026-11-06 |

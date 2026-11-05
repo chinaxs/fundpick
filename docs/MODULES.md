@@ -36,6 +36,7 @@
 | 基础设施 | `app/core/` | 配置、安全、日志、异常 | 依赖业务模块 | [README](../services/api/app/core/README.md) |
 | 数据连接 | `app/db/` | 引擎、会话工厂、ORM 基类 | 写具体业务查询 | [README](../services/api/app/db/README.md) |
 | 通用工具 | `app/utils/` | 无副作用的纯函数 | 变成垃圾桶 | — |
+| 数据源 | `app/datasources/` | 抽象外部数据接入，隔离供应商差异 | 把业务规则写进采集层 | [README](../services/api/app/datasources/README.md) |
 | AI 能力 | `app/ai/` | 模型工厂、工具、智能体、工作流 | 绕过 service 改数据 | [README](../services/api/app/ai/README.md) |
 | 迁移 | `alembic/` | 版本化表结构变更 | 手改线上库 | [README](../services/api/alembic/README.md) |
 | 测试 | `tests/` | 接口与纯函数回归 | 依赖外部模型服务 | — |
@@ -77,6 +78,8 @@
 | 加一个业务表 | models → schemas → repositories → services → endpoints | 见 [development.md](development.md#新增一个后端业务模块以-product-为例) |
 | 加一个后台页面 | `views/` + `api/` + `router/` | 见 [development.md](development.md#新增一个后台页面) |
 | 加一个门户页面 | `app/pages/` | 见 [development.md](development.md#新增一个门户页面) |
+| 加基金相关功能 | 见 [fund-module.md](fund-module.md) | 模型 → 采集 → 服务 → 接口 → 页面 |
+| 换数据源 | `app/datasources/` | 实现 `FundDataProvider` 后在工厂切换 |
 | 加一个 AI 工具 | `app/ai/tools/` | 见 [ai.md](ai.md#加一个工具) |
 | 加一条确定性的 AI 流程 | `app/ai/graphs/` | 见 [ai.md](ai.md#加一条工作流) |
 | 加一个共享工具函数 | `packages/shared/src/utils/` | 先确认两个 app 都要用 |
