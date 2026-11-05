@@ -39,15 +39,15 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'zh-CN' },
-      title: 'Study 门户',
-      titleTemplate: '%s · Study 门户',
+      title: '拾贝 FundPick',
+      titleTemplate: '%s · 拾贝',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         {
           name: 'description',
           content:
-            'Study 门户网站：产品介绍、行业资讯与解决方案，基于 Nuxt 构建，服务端渲染、SEO 友好。',
+            '拾贝 FundPick：全市场公募基金筛选与排行。按区间收益、最大回撤、夏普比率、规模多维度筛选，指标口径公开可复算。',
         },
         { name: 'format-detection', content: 'telephone=no' },
       ],

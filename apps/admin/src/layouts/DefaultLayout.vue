@@ -42,8 +42,8 @@ async function handleLogout() {
   <el-container class="layout">
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout__aside">
       <div class="logo">
-        <span class="logo__mark">S</span>
-        <span v-show="!appStore.sidebarCollapsed" class="logo__text">Study Admin</span>
+        <BrandMark :size="30" class="logo__mark" />
+        <span v-show="!appStore.sidebarCollapsed" class="logo__text">拾贝管理</span>
       </div>
 
       <el-menu
@@ -192,15 +192,8 @@ async function handleLogout() {
   white-space: nowrap;
 
   &__mark {
-    display: grid;
     flex: none;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    font-weight: 700;
-    color: #fff;
-    background: $color-primary;
-    border-radius: 8px;
+    color: $color-primary;
   }
 
   &__text {

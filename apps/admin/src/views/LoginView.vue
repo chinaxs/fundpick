@@ -41,7 +41,7 @@ async function handleSubmit() {
     <div class="login__panel">
       <div class="login__brand">
         <div class="login__logo">S</div>
-        <h1 class="login__title">Study 管理后台</h1>
+        <h1 class="login__title">拾贝 · 管理后台</h1>
         <p class="login__desc">
           前后端分离 · Vue 3 + Element Plus + FastAPI<br />
           统一鉴权、统一响应、可扩展的模块划分
