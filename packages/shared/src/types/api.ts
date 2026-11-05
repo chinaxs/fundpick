@@ -122,3 +122,95 @@ export interface ArticleQuery extends PageParams {
   status?: ArticleStatus
   keyword?: string
 }
+
+// ---------------------------------------------------------------- 基金
+export type FundType = 'stock' | 'hybrid' | 'bond' | 'index' | 'qdii' | 'money' | 'fof' | 'other'
+
+export type RiskLevel = 'low' | 'mid_low' | 'mid' | 'mid_high' | 'high'
+
+export type FundStatus = 'open' | 'suspended' | 'closed'
+
+export type FundPeriod = '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | 'ytd' | 'all'
+
+export type FundSortBy = 'return' | 'sharpe' | 'max_drawdown' | 'volatility' | 'scale' | 'nav'
+
+export type SortOrder = 'asc' | 'desc'
+
+/** 列表项：字段与后端 FundListItem 一一对应 */
+export interface FundListItem {
+  id: number
+  code: string
+  name: string
+  type: FundType
+  risk_level: RiskLevel | null
+  company_name: string | null
+  manager_name: string | null
+  /** 单位净值 */
+  latest_nav: number | null
+  latest_nav_date: string | null
+  /** 规模（亿元） */
+  scale: number | null
+  /** 管理费率（%/年） */
+  fee_rate: number | null
+  /** 所选区间收益率（%） */
+  return_rate: number | null
+  /** 最大回撤（%，正数表示回撤幅度） */
+  max_drawdown: number | null
+  /** 年化波动率（%） */
+  volatility: number | null
+  sharpe: number | null
+  rank: number | null
+  total: number | null
+}
+
+export interface FundDetail extends FundListItem {
+  full_name: string | null
+  status: FundStatus
+  inception_date: string | null
+  custody_fee: number | null
+  is_index: boolean
+  tracking_index: string | null
+  manager_tenure_years: number | null
+  manager_scale: number | null
+  manager_best_return: number | null
+}
+
+export interface FundQuery extends PageParams {
+  keyword?: string
+  type?: FundType
+  risk_level?: RiskLevel
+  company_id?: number
+  period?: FundPeriod
+  sort_by?: FundSortBy
+  sort_order?: SortOrder
+}
+
+export interface FundMetric {
+  period: string
+  return_rate: number | null
+  annual_return: number | null
+  max_drawdown: number | null
+  volatility: number | null
+  sharpe: number | null
+  rank: number | null
+  total: number | null
+}
+
+export interface NavPoint {
+  nav_date: string
+  unit_nav: number
+  daily_return: number | null
+}
+
+export interface FilterOption {
+  value: string | number
+  label: string
+}
+
+export interface FilterOptions {
+  types: FilterOption[]
+  risk_levels: FilterOption[]
+  companies: FilterOption[]
+  periods: FilterOption[]
+  sort_fields: FilterOption[]
+}

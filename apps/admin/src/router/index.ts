@@ -29,6 +29,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '仪表盘', icon: 'Odometer' },
       },
       {
+        path: 'funds',
+        name: 'funds',
+        component: () => import('@/views/funds/FundListView.vue'),
+        meta: { title: '基金管理', icon: 'TrendCharts' },
+      },
+      {
         path: 'users',
         name: 'users',
         component: () => import('@/views/users/UserListView.vue'),

@@ -13,8 +13,9 @@ const authStore = useAuthStore()
 
 const menus = [
   { name: 'dashboard', title: '仪表盘', icon: 'Odometer' },
+  { name: 'funds', title: '基金管理', icon: 'TrendCharts' },
+  { name: 'articles', title: '内容管理', icon: 'Document' },
   { name: 'users', title: '用户管理', icon: 'User' },
-  { name: 'articles', title: '文章管理', icon: 'Document' },
 ]
 
 const activeMenu = computed(() => route.name as string)

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 const navs = [
   { label: '首页', to: '/' },
-  { label: '资讯', to: '/articles' },
+  { label: '基金筛选', to: '/funds' },
+  { label: '研报', to: '/articles' },
   { label: '关于', to: '/about' },
 ]
 
@@ -13,7 +14,7 @@ const menuOpen = ref(false)
     <div class="container header__inner">
       <NuxtLink to="/" class="brand">
         <span class="brand__mark">S</span>
-        <span class="brand__name">Study 门户</span>
+        <span class="brand__name">Study 基金</span>
       </NuxtLink>
 
       <nav class="nav" :class="{ 'nav--open': menuOpen }">

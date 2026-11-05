@@ -15,6 +15,8 @@ import type {
   UserUpdatePayload,
 } from '@project/shared'
 
+import type { FundListItem, FundQuery } from '@project/shared'
+
 import { api } from './client'
 
 export const authApi = {
@@ -40,4 +42,12 @@ export const articleApi = {
   update: (id: number, payload: ArticleUpdatePayload) =>
     api.patch<Article>(`/admin/articles/${id}`, payload),
   remove: (id: number) => api.delete<{ id: number }>(`/admin/articles/${id}`),
+}
+
+export const fundApi = {
+  list: (params: FundQuery) => api.get<PageResult<FundListItem>>('/admin/funds', params),
+  syncStatus: () =>
+    api.get<{ fund_total: number; nav_rows: number; latest_nav_date: string | null }>(
+      '/admin/funds/sync-status',
+    ),
 }
