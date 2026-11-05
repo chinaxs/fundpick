@@ -1,0 +1,49 @@
+{
+  "name": "project-study",
+  "version": "0.1.0",
+  "private": true,
+  "description": "project_study monorepo：Vue 后台 + Nuxt 门户 + FastAPI 服务",
+  "packageManager": "pnpm@9.9.0",
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "predev": "pnpm --filter @project/shared build",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:admin": "pnpm --filter @project/admin dev",
+    "dev:portal": "pnpm --filter @project/portal dev",
+    "dev:api": "cd services/api && uv run uvicorn app.main:app --reload --port 8000",
+    "build": "pnpm -r build",
+    "build:shared": "pnpm --filter @project/shared build",
+    "build:admin": "pnpm --filter @project/admin build",
+    "build:portal": "pnpm --filter @project/portal build",
+    "type-check": "pnpm -r --if-present type-check",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "format": "prettier --write \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "3.9.6"
+  },
+  "lint-staged": {
+    "apps/admin/**/*.{ts,vue}": [
+      "prettier --write"
+    ],
+    "apps/portal/**/*.{ts,vue}": [
+      "prettier --write"
+    ],
+    "packages/**/*.ts": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

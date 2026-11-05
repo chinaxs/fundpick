@@ -1,0 +1,61 @@
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import { STORAGE_KEYS, type LoginPayload, type TokenResponse, type User } from '@project/shared'
+
+import { authApi } from '@/api'
+
+/**
+ * 登录态：token 存 localStorage，用户信息存内存（刷新后重新拉取）。
+ */
+export const useAuthStore = defineStore('auth', () => {
+  const accessToken = ref<string>(localStorage.getItem(STORAGE_KEYS.accessToken) ?? '')
+  const currentUser = ref<User | null>(null)
+  const loading = ref(false)
+
+  const isLoggedIn = computed(() => Boolean(accessToken.value))
+  const displayName = computed(
+    () => currentUser.value?.full_name || currentUser.value?.username || '未登录',
+  )
+  const isSuperuser = computed(() => currentUser.value?.is_superuser ?? false)
+
+  function persistTokens(tokens: TokenResponse) {
+    accessToken.value = tokens.access_token
+    localStorage.setItem(STORAGE_KEYS.accessToken, tokens.access_token)
+    localStorage.setItem(STORAGE_KEYS.refreshToken, tokens.refresh_token)
+  }
+
+  async function login(payload: LoginPayload) {
+    loading.value = true
+    try {
+      const tokens = await authApi.login(payload)
+      persistTokens(tokens)
+      await fetchProfile()
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchProfile() {
+    if (!accessToken.value) return
+    currentUser.value = await authApi.me()
+  }
+
+  function logout() {
+    accessToken.value = ''
+    currentUser.value = null
+    localStorage.removeItem(STORAGE_KEYS.accessToken)
+    localStorage.removeItem(STORAGE_KEYS.refreshToken)
+  }
+
+  return {
+    accessToken,
+    currentUser,
+    loading,
+    isLoggedIn,
+    isSuperuser,
+    displayName,
+    login,
+    fetchProfile,
+    logout,
+  }
+})

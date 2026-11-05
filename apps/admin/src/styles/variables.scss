@@ -1,0 +1,23 @@
+// 全局设计变量：改配色 / 尺寸只需动这里
+$color-primary: #2b6cb0;
+$color-success: #2f855a;
+$color-warning: #b7791f;
+$color-danger: #c53030;
+$color-info: #718096;
+
+$text-primary: #1a202c;
+$text-regular: #4a5568;
+$text-secondary: #718096;
+
+$bg-page: #f5f7fa;
+$bg-container: #ffffff;
+$border-color: #e2e8f0;
+
+$header-height: 56px;
+$sidebar-width: 220px;
+$sidebar-width-collapsed: 64px;
+
+$radius-base: 8px;
+$shadow-card:
+  0 1px 2px rgb(16 24 40 / 6%),
+  0 1px 3px rgb(16 24 40 / 10%);

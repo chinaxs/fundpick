@@ -1,0 +1,53 @@
+# 容器化运行（可选）。日常开发直接用本机 MySQL 即可，本文件用于环境隔离 / 演示。
+# 注意：本机 MySQL 已占用 3306，这里映射到 3307 避免冲突。
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: study-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: test_study
+      MYSQL_USER: study_app
+      MYSQL_PASSWORD: study_app_123456
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - '3307:3306'
+    volumes:
+      - study_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-proot123456']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./services/api
+    container_name: study-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DEBUG: 'false'
+      MYSQL_HOST: mysql
+      MYSQL_PORT: '3306'
+      MYSQL_USER: study_app
+      MYSQL_PASSWORD: study_app_123456
+      MYSQL_DB: test_study
+      SECRET_KEY: change-me-in-production
+      CORS_ORIGINS: http://localhost:5174,http://localhost:3000
+    ports:
+      - '8000:8000'
+    # 首次启动先迁移再起服务
+    command: >
+      sh -c "uv run alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+
+volumes:
+  study_mysql_data:

@@ -1,0 +1,50 @@
+# ---------------- Node ----------------
+node_modules/
+.pnpm-store/
+dist/
+dist-ssr/
+.output/
+.nuxt/
+.nitro/
+.cache/
+coverage/
+*.local
+.turbo/
+*.tsbuildinfo
+
+# ---------------- 环境变量 ----------------
+.env
+.env.*
+!.env.example
+!.env.development
+!.env.production
+.env.local
+
+# ---------------- Python ----------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+logs/
+
+# ---------------- 编辑器 / 系统 ----------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------------- 工具内部数据 ----------------
+.workbuddy/
+
+# ---------------- 日志 ----------------
+*.log
+npm-debug.log*
+pnpm-debug.log*

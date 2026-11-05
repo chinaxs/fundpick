@@ -1,0 +1,10 @@
+node_modules
+dist
+.output
+.nuxt
+.nitro
+coverage
+pnpm-lock.yaml
+services/api/.venv
+services/api/alembic/versions
+*.md

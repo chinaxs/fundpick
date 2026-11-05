@@ -1,0 +1,70 @@
+[project]
+name = "study-api"
+version = "0.1.0"
+description = "project_study 后端服务（FastAPI + SQLAlchemy 2.x 异步）"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncmy>=0.2.17",
+    "bcrypt>=5.0.0",
+    "cryptography>=50.0.2",
+    "email-validator>=2.3.0",
+    "fastapi>=0.162.0",
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.16.0",
+    "pyjwt>=2.10.0",
+    "python-multipart>=0.0.20",
+    "sqlalchemy[asyncio]>=2.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "mypy>=2.0.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.2.0",
+    "ruff>=0.17.0",
+]
+
+[tool.uv]
+# 应用型项目，不打包安装自身
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = [
+    "B008",     # FastAPI Depends() 默认参数
+    "RUF001",   # 中文全角标点（字符串）
+    "RUF002",   # 中文全角标点（docstring）
+    "RUF003",   # 中文全角标点（注释）
+    "UP046",    # 泛型类暂用 TypeVar 写法，兼容 pydantic 泛型
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+strict = false
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra"
