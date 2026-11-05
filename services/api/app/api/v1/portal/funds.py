@@ -13,6 +13,7 @@ from app.schemas.fund import (
     FundDetail,
     FundListItem,
     FundQuery,
+    HoldingsResult,
     MetricRead,
     NavPointRead,
     NavRange,
@@ -77,4 +78,23 @@ async def fund_navs(
     本地没有数据时会实时回填一次（首次访问约 1 秒，之后走本地）。
     """
     data = await FundService(session).ensure_navs(code, period, limit)
+    return ApiResponse(data=data, request_id=request_id)
+
+
+@router.get(
+    "/{code}/holdings", summary="基金季度重仓股", response_model=ApiResponse[HoldingsResult]
+)
+async def fund_holdings(
+    code: str,
+    session: SessionDep,
+    request_id: RequestIdDep,
+    quarter: Annotated[
+        str | None, Query(description="季度，如 2025Q2；缺省取最新披露季度")
+    ] = None,
+) -> ApiResponse[HoldingsResult]:
+    """季度重仓股明细（季报数据，占净值比例降序）。
+
+    本地没有数据时会实时回填一次；债券/货币基金通常无股票持仓，返回空列表。
+    """
+    data = await FundService(session).holdings(code, quarter)
     return ApiResponse(data=data, request_id=request_id)

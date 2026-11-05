@@ -54,6 +54,24 @@ class FundProfile:
     scale: float | None = None
     inception_date: date | None = None
     company_name: str | None = None
+    # 费率（%/年）。注意与管理费区分：申购费是一次性费用，不在这里。
+    management_fee: float | None = None
+    custody_fee: float | None = None
+    # C 类份额用销售服务费替代申购费，同样按年计提
+    sales_service_fee: float | None = None
+
+
+@dataclass(slots=True)
+class FundHolding:
+    """单只基金某个季度的重仓股。"""
+
+    quarter: str  # 归一化格式，如 "2025Q2"
+    stock_code: str
+    stock_name: str
+    rank: int  # 第几大重仓
+    ratio: float | None = None  # 占净值比例（%）
+    shares: float | None = None  # 持股数（万股）
+    market_value: float | None = None  # 持仓市值（亿元）
 
 
 @dataclass(slots=True)
@@ -97,7 +115,11 @@ class FundDataProvider(Protocol):
         ...
 
     def fund_profile(self, code: str) -> FundProfile | None:
-        """单只基金档案：全称、规模、成立日期、公司。"""
+        """单只基金档案：全称、规模、成立日期、公司、费率。"""
+        ...
+
+    def fund_holdings(self, code: str, year: str) -> list[FundHolding]:
+        """单只基金某年度各季度的重仓股明细。"""
         ...
 
     def risk_metrics(self, code: str) -> list[RiskMetric]:

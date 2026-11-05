@@ -22,6 +22,8 @@ from app.schemas.fund import (
     FundListItem,
     FundQuery,
     FundSortBy,
+    HoldingsResult,
+    HoldingRead,
     MetricRead,
     NavPointRead,
     NavRange,
@@ -235,6 +237,76 @@ class FundService:
             NavPointRead(nav_date=n.nav_date, unit_nav=n.unit_nav, daily_return=n.daily_return)
             for n in rows
         ]
+
+    # ---------------------------------------------------------- 持仓
+    async def holdings(self, code: str, quarter: str | None = None) -> HoldingsResult:
+        """季度重仓股；本地没有时实时回填一次（与净值的策略一致）。
+
+        持仓是季报数据（一个季度约 4 万行全市场），预拉不划算，
+        按需补齐最经济。
+        """
+        from datetime import datetime
+
+        from app.models.fund_holding import FundHolding
+
+        fund = await self._require_fund(code)
+        quarters = await self.funds.holding_quarters(fund.id)
+        if not quarters:
+            # 本地无数据：拉当年披露（跨年时再补上一年）
+            years = {str(datetime.now().year), str(datetime.now().year - 1)}
+            for year in sorted(years, reverse=True):
+                try:
+                    rows = await asyncio.to_thread(
+                        get_provider().fund_holdings, code, year
+                    )
+                except Exception:
+                    continue
+                if rows:
+                    payload = [
+                        {
+                            "fund_id": fund.id,
+                            "quarter": h.quarter,
+                            "stock_code": h.stock_code,
+                            "stock_name": h.stock_name,
+                            "rank": h.rank or None,
+                            "ratio": h.ratio,
+                            "shares": h.shares,
+                            "market_value": h.market_value,
+                        }
+                        for h in rows
+                    ]
+                    stmt = insert(FundHolding).values(payload)
+                    stmt = stmt.on_duplicate_key_update(
+                        stock_name=stmt.inserted.stock_name,
+                        rank=stmt.inserted.rank,
+                        ratio=stmt.inserted.ratio,
+                        shares=stmt.inserted.shares,
+                        market_value=stmt.inserted.market_value,
+                    )
+                    await self.session.execute(stmt)
+                    await self.session.commit()
+            quarters = await self.funds.holding_quarters(fund.id)
+
+        target = quarter if quarter in quarters else (quarters[0] if quarters else None)
+        if target is None:
+            return HoldingsResult(quarters=quarters, quarter=None, items=[], total_ratio=None)
+
+        rows = await self.funds.holdings(fund.id, target)
+        items = [
+            HoldingRead(
+                quarter=h.quarter,
+                stock_code=h.stock_code,
+                stock_name=h.stock_name,
+                rank=h.rank,
+                ratio=float(h.ratio) if h.ratio is not None else None,
+                shares=float(h.shares) if h.shares is not None else None,
+                market_value=float(h.market_value) if h.market_value is not None else None,
+            )
+            for h in rows
+        ]
+        top10 = [i for i in items if (i.rank or 99) <= 10]
+        total_ratio = round(sum(i.ratio or 0 for i in top10), 2) if top10 else None
+        return HoldingsResult(quarters=quarters, quarter=target, items=items, total_ratio=total_ratio)
 
     async def navs(
         self, code: str, period: NavRange = NavRange.Y1, limit: int = 2000

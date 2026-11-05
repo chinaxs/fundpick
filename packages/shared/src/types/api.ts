@@ -205,6 +205,23 @@ export interface NavPoint {
   daily_return: number | null
 }
 
+export interface FundHoldingItem {
+  quarter: string
+  stock_code: string
+  stock_name: string | null
+  rank: number | null
+  ratio: number | null
+  shares: number | null
+  market_value: number | null
+}
+
+export interface FundHoldingsResult {
+  quarters: string[]
+  quarter: string | null
+  items: FundHoldingItem[]
+  total_ratio: number | null
+}
+
 export interface FilterOption {
   value: string | number
   label: string

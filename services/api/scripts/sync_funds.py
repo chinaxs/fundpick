@@ -4,11 +4,15 @@
     uv run python -m scripts.sync_funds --mode quick      # 公司/基金/经理/排行（先跑这个）
     uv run python -m scripts.sync_funds --mode risk --limit 500  # 风险指标（逐只，可分批）
     uv run python -m scripts.sync_funds --mode navs --limit 100  # 净值序列（详情页图表用）
+    uv run python -m scripts.sync_funds --mode detail --limit 500  # 档案+真实费率
+    uv run python -m scripts.sync_funds --mode holdings --limit 100  # 季度重仓股
+    uv run python -m scripts.sync_funds --mode detail --codes 021180  # 只补指定基金
 
 设计要点：
 - 所有写入按 500 条一批 upsert（MySQL ON DUPLICATE KEY UPDATE），避免先查后插；
 - 数据源调用是同步阻塞的，用 asyncio.to_thread 隔离，不阻塞事件循环；
-- 每个模式可单独执行、可重复执行（幂等），失败后重跑不会产生脏数据。
+- 每个模式可单独执行、可重复执行（幂等），失败后重跑不会产生脏数据；
+- 费率（管理费/托管费）只写拿到的真实值，拿不到保持 NULL——绝不写 0 兜底。
 """
 
 from __future__ import annotations
@@ -296,7 +300,6 @@ async def sync_snapshots(session: AsyncSession) -> int:
                 "name": s.name,
                 "latest_nav": s.unit_nav,
                 "latest_nav_date": s.nav_date,
-                "management_fee": s.fee_rate,
             }
         )
         for period, attr in period_map.items():
@@ -312,12 +315,9 @@ async def sync_snapshots(session: AsyncSession) -> int:
                 }
             )
 
-    await upsert(
-        session,
-        Fund,
-        fund_rows,
-        ["name", "latest_nav", "latest_nav_date", "management_fee"],
-    )
+    # 注意：不把排行接口的"手续费"（申购费）写进 management_fee。
+    # 管理费/托管费是按年计提的费率，来自 fund_profile 的费用明细（sync_details）。
+    await upsert(session, Fund, fund_rows, ["name", "latest_nav", "latest_nav_date"])
     updated = await upsert(session, FundMetric, metric_rows, ["nav_date", "return_rate"])
     logger.info("[快照] 基金 %d 条，指标 %d 条（%s）", len(fund_rows), updated, _elapsed())
     return updated
@@ -375,26 +375,39 @@ async def sync_risks(session: AsyncSession, limit: int | None) -> int:
     return done
 
 
-async def sync_details(session: AsyncSession, limit: int | None) -> int:
-    """补全基金档案：全称、规模、成立日期。
+async def sync_details(session: AsyncSession, limit: int | None, codes: list[str] | None) -> int:
+    """补全基金档案：全称、规模、成立日期、管理费/托管费。
 
-    逐只请求（约 0.3 秒/只），因此按近一年收益降序，优先补用户最常看到的头部基金。
+    费率必须来自雪球的费用明细（按年计提），排行接口的"手续费"是申购费，
+    两者语义完全不同（C 类申购费为 0，曾被误当管理费写入）。
     """
     from sqlalchemy import or_, update
 
-    stmt = (
-        select(Fund.id, Fund.code)
-        .join(FundMetric, FundMetric.fund_id == Fund.id)
-        .where(
-            FundMetric.period == "1y",
-            FundMetric.return_rate.is_not(None),
-            or_(Fund.scale.is_(None), Fund.inception_date.is_(None)),
+    if codes:
+        funds = (
+            await session.execute(
+                select(Fund.id, Fund.code).where(Fund.code.in_(codes))
+            )
+        ).all()
+    else:
+        # 逐只请求（约 0.3 秒/只），按近一年收益降序，优先补用户最常看到的头部基金。
+        # MySQL 不支持 NULLS LAST，用 "IS NULL 升序 + 收益降序" 等价实现
+        stmt = (
+            select(Fund.id, Fund.code)
+            .outerjoin(FundMetric, (FundMetric.fund_id == Fund.id) & (FundMetric.period == "1y"))
+            .where(
+                Fund.deleted_at.is_(None),
+                or_(
+                    Fund.scale.is_(None),
+                    Fund.inception_date.is_(None),
+                    Fund.management_fee.is_(None),
+                ),
+            )
+            .order_by(FundMetric.return_rate.is_(None), FundMetric.return_rate.desc(), Fund.id)
         )
-        .order_by(FundMetric.return_rate.desc())
-    )
-    if limit:
-        stmt = stmt.limit(limit)
-    funds = (await session.execute(stmt)).all()
+        if limit:
+            stmt = stmt.limit(limit)
+        funds = (await session.execute(stmt)).all()
 
     provider = get_provider()
     updated = 0
@@ -414,6 +427,11 @@ async def sync_details(session: AsyncSession, limit: int | None) -> int:
             values["inception_date"] = profile.inception_date
         if profile.full_name:
             values["full_name"] = profile.full_name
+        # 费率只写非 None 值：拿不到就保持 NULL，绝不写 0 兜底
+        if profile.management_fee is not None:
+            values["management_fee"] = profile.management_fee
+        if profile.custody_fee is not None:
+            values["custody_fee"] = profile.custody_fee
         if not values:
             continue
 
@@ -465,6 +483,66 @@ async def sync_navs(session: AsyncSession, limit: int | None) -> int:
             logger.info("[净值] %d/%d（%s）", idx, len(funds), _elapsed())
 
     logger.info("[净值] 写入 %d 条（%s）", total, _elapsed())
+    return total
+
+
+async def sync_holdings(session: AsyncSession, limit: int | None, codes: list[str] | None) -> int:
+    """季度重仓股：逐只拉取当年披露的各季度前十大重仓。
+
+    按流通市值降序补齐（大盘基金先采），同一季度重复采集幂等覆盖。
+    """
+    from app.models import FundHolding
+
+    year = str(datetime.now().year)
+    if codes:
+        funds = (
+            await session.execute(select(Fund.id, Fund.code).where(Fund.code.in_(codes)))
+        ).all()
+    else:
+        stmt = (
+            select(Fund.id, Fund.code)
+            .where(Fund.deleted_at.is_(None), Fund.type.in_(["stock", "hybrid", "index"]))
+            .order_by(Fund.scale.is_(None), Fund.scale.desc(), Fund.id)
+        )
+        if limit:
+            stmt = stmt.limit(limit)
+        funds = (await session.execute(stmt)).all()
+
+    provider = get_provider()
+    total = 0
+    for idx, (fund_id, code) in enumerate(funds, start=1):
+        try:
+            holdings = await asyncio.to_thread(provider.fund_holdings, code, year)
+        except Exception as exc:
+            logger.debug("[持仓] %s 失败：%s", code, exc)
+            continue
+        if not holdings:
+            continue
+
+        rows = [
+            {
+                "fund_id": fund_id,
+                "quarter": h.quarter,
+                "stock_code": h.stock_code,
+                "stock_name": h.stock_name,
+                "rank": h.rank or None,
+                "ratio": h.ratio,
+                "shares": h.shares,
+                "market_value": h.market_value,
+            }
+            for h in holdings
+        ]
+        total += await upsert(
+            session,
+            FundHolding,
+            rows,
+            ["stock_name", "rank", "ratio", "shares", "market_value"],
+        )
+        if idx % 50 == 0:
+            logger.info("[持仓] %d/%d（%s）", idx, len(funds), _elapsed())
+        await asyncio.sleep(0.1)  # 重仓接口较重，限速防反爬
+
+    logger.info("[持仓] 写入 %d 条（%s）", total, _elapsed())
     return total
 
 
@@ -602,7 +680,7 @@ async def link_companies(session: AsyncSession) -> int:
 
 
 # ---------------------------------------------------------------- 入口
-async def run(mode: str, limit: int | None) -> None:
+async def run(mode: str, limit: int | None, codes: list[str] | None) -> None:
     async with async_session_factory() as session:
         if mode in {"quick", "all"}:
             company_ids = await sync_companies(session)
@@ -616,9 +694,11 @@ async def run(mode: str, limit: int | None) -> None:
         if mode in {"scale", "all"}:
             await sync_scale(session)
         if mode in {"detail", "all"}:
-            await sync_details(session, limit)
+            await sync_details(session, limit, codes)
         if mode in {"navs", "all"}:
             await sync_navs(session, limit)
+        if mode in {"holdings", "all"}:
+            await sync_holdings(session, limit, codes)
     await dispose_engine()
 
 
@@ -626,16 +706,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="基金数据同步")
     parser.add_argument(
         "--mode",
-        choices=["quick", "risk", "scale", "detail", "navs", "all"],
+        choices=["quick", "risk", "scale", "detail", "navs", "holdings", "all"],
         default="quick",
-        help="quick=基础数据；risk=风险指标；navs=净值序列；all=全部",
+        help="quick=基础数据；risk=风险指标；navs=净值序列；holdings=季度重仓股；all=全部",
     )
     parser.add_argument("--limit", type=int, default=None, help="限制处理的基金数量（调试用）")
+    parser.add_argument(
+        "--codes",
+        type=str,
+        default=None,
+        help="只处理指定基金代码，逗号分隔（如 021180,110022，调试用）",
+    )
     args = parser.parse_args()
+    codes = [c.strip() for c in args.codes.split(",")] if args.codes else None
 
     setup_logging()
-    logger.info("开始同步，模式=%s limit=%s", args.mode, args.limit)
-    asyncio.run(run(args.mode, args.limit))
+    logger.info("开始同步，模式=%s limit=%s codes=%s", args.mode, args.limit, codes)
+    asyncio.run(run(args.mode, args.limit, codes))
     logger.info("同步结束，耗时 %s", _elapsed())
 
 

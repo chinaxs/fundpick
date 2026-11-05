@@ -8,6 +8,7 @@ import type {
   OverviewStats,
   ReturnDistribution,
   FundDetail,
+  FundHoldingsResult,
   FundListItem,
   FundMetric,
   FundQuery,
@@ -115,5 +116,23 @@ export function useFundNavs(code: string, period: MaybeRef<NavRange> = '1y', lim
       return res.data ?? []
     },
     { watch: [() => unref(period)] },
+  )
+}
+
+/**
+ * 季度重仓股。quarter 支持传 ref：切换季度时自动重新请求。
+ * 债券 / 货币基金通常没有股票持仓，返回空列表属正常。
+ */
+export function useFundHoldings(code: string, quarter: MaybeRef<string | null> = null) {
+  return useAsyncData<FundHoldingsResult>(
+    `fund-holdings-${code}`,
+    async () => {
+      const res = await $fetch<ApiResponse<FundHoldingsResult>>(`/portal/funds/${code}/holdings`, {
+        baseURL: useApiBase(),
+        query: { quarter: unref(quarter) ?? undefined },
+      })
+      return res.data ?? { quarters: [], quarter: null, items: [], total_ratio: null }
+    },
+    { watch: [() => unref(quarter)] },
   )
 }

@@ -22,6 +22,26 @@ if (!fund.value) {
 
 const { data: metrics } = await useFundMetrics(code)
 
+// 季度重仓股：与 detail/metrics 一样 await 进 SSR（首屏直接可见，SEO 友好）；
+// 首次访问未采集的基金会触发实时回填，约多 1 秒
+const holdingQuarter = ref<string | null>(null)
+const { data: holdings } = await useFundHoldings(code, holdingQuarter)
+
+const topHoldings = computed(() =>
+  (holdings.value?.items ?? []).filter((h) => (h.rank ?? 99) <= 10),
+)
+const hasHoldings = computed(() => (holdings.value?.items ?? []).length > 0)
+
+/** 前十合计占比（模板里保持表达式简单，生产编译器对复杂链式支持不稳） */
+const totalRatioText = computed(() =>
+  holdings.value?.total_ratio != null ? `${holdings.value.total_ratio.toFixed(2)}%` : '—',
+)
+
+/** 占比条宽度：最大 12.5% 封顶（×8 映射到 100%） */
+function ratioBarWidth(ratio: number | null): string {
+  return `${Math.min(100, (ratio ?? 0) * 8)}%`
+}
+
 // 曲线区间：默认近 1 年，切换时自动重新请求（composable 内 watch）
 const navRange = ref<NavRange>('1y')
 const { data: navs, pending: navsPending } = await useFundNavs(code, navRange)
@@ -200,6 +220,66 @@ useSeoMeta({
                 </td>
                 <td class="ta-r num">{{ metricMap.get(period)?.sharpe?.toFixed(2) ?? '—' }}</td>
                 <td class="ta-r num muted">{{ metricMap.get(period)?.rank ?? '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 季度重仓股 -->
+      <section v-if="hasHoldings" class="card block">
+        <div class="block__head block__head--wrap">
+          <div>
+            <h2 class="block__title">前十大重仓股</h2>
+            <p class="block__sub">
+              {{ holdings?.quarter }} 季报披露 · 前十合计占净值 {{ totalRatioText }}
+            </p>
+          </div>
+
+          <div v-if="(holdings?.quarters ?? []).length > 1" class="range">
+            <button
+              v-for="q in holdings?.quarters"
+              :key="q"
+              type="button"
+              class="range__btn"
+              :class="{ 'range__btn--active': (holdings?.quarter ?? '') === q }"
+              @click="holdingQuarter = q"
+            >
+              {{ q }}
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>股票</th>
+                <th class="ta-r">占净值比例</th>
+                <th class="ta-r">持股数（万股）</th>
+                <th class="ta-r">持仓市值（亿元）</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="h in topHoldings" :key="h.stock_code">
+                <td class="num muted">{{ h.rank }}</td>
+                <td>
+                  <span class="holding__name">{{ h.stock_name ?? '—' }}</span>
+                  <span class="mono holding__code">{{ h.stock_code }}</span>
+                </td>
+                <td class="ta-r num">
+                  <span class="holding__ratio-bar">
+                    <span class="holding__ratio-fill" :style="{ width: ratioBarWidth(h.ratio) }" />
+                  </span>
+                  {{ h.ratio?.toFixed(2) ?? '—' }}%
+                </td>
+                <td class="ta-r num muted">
+                  {{ h.shares != null ? h.shares.toLocaleString('zh-CN') : '—' }}
+                </td>
+                <td class="ta-r num muted">
+                  {{ h.market_value != null ? h.market_value.toFixed(2) : '—' }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -495,6 +575,32 @@ useSeoMeta({
 }
 
 /* ---------------- 基本信息 ---------------- */
+.holding__name {
+  font-weight: 500;
+}
+
+.holding__code {
+  margin-left: 8px;
+}
+
+.holding__ratio-bar {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--bg-soft);
+  border-radius: 3px;
+}
+
+.holding__ratio-fill {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 3px;
+  opacity: 0.55;
+}
+
 .info {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));

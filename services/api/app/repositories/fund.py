@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 
 from app.models.fund import Fund
 from app.models.fund_company import FundCompany, FundManager
+from app.models.fund_holding import FundHolding
 from app.models.fund_metric import FundMetric
 from app.models.fund_nav import FundNav
 from app.repositories.base import BaseRepository
@@ -109,6 +110,31 @@ class FundRepository(BaseRepository[Fund]):
         rows = list((await self.session.execute(stmt)).scalars().all())
         rows.reverse()
         return rows
+
+    async def holdings(self, fund_id: int, quarter: str | None = None) -> list[FundHolding]:
+        """季度重仓股，按占比降序。quarter 为 None 时取最新披露季度。"""
+        stmt = select(FundHolding).where(FundHolding.fund_id == fund_id)
+        if quarter is None:
+            latest = (
+                select(func.max(FundHolding.quarter))
+                .where(FundHolding.fund_id == fund_id)
+                .scalar_subquery()
+            )
+            stmt = stmt.where(FundHolding.quarter == latest)
+        else:
+            stmt = stmt.where(FundHolding.quarter == quarter)
+        stmt = stmt.order_by(FundHolding.rank)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def holding_quarters(self, fund_id: int) -> list[str]:
+        """该基金已披露持仓的季度，倒序。"""
+        stmt = (
+            select(FundHolding.quarter)
+            .where(FundHolding.fund_id == fund_id)
+            .distinct()
+            .order_by(FundHolding.quarter.desc())
+        )
+        return [row[0] for row in (await self.session.execute(stmt)).all()]
 
     async def companies(self) -> list[FundCompany]:
         stmt = select(FundCompany).order_by(FundCompany.name)

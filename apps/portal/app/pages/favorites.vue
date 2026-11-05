@@ -125,15 +125,7 @@ useSeoMeta({
             上一页
           </button>
           <span class="pager__now">第 {{ page }} 页</span>
-          <button
-            type="button"
-            class="pager__btn"
-            :disabled="!hasMore"
-            @click="
-              page++
-              refresh()
-            "
-          >
+          <button type="button" class="pager__btn" :disabled="!hasMore" @click="page++">
             下一页
           </button>
         </div>

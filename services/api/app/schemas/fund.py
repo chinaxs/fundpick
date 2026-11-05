@@ -115,6 +115,27 @@ class NavPointRead(BaseModel):
     daily_return: float | None = None
 
 
+class HoldingRead(BaseModel):
+    """单只重仓股。"""
+
+    quarter: str
+    stock_code: str
+    stock_name: str | None = None
+    rank: int | None = None
+    ratio: float | None = None  # 占净值比例（%）
+    shares: float | None = None  # 持股数（万股）
+    market_value: float | None = None  # 持仓市值（亿元）
+
+
+class HoldingsResult(BaseModel):
+    """持仓查询结果：可选季度列表 + 当前季度明细。"""
+
+    quarters: list[str] = Field(default_factory=list, description="已披露的季度，倒序")
+    quarter: str | None = Field(default=None, description="当前返回的季度")
+    items: list[HoldingRead] = Field(default_factory=list)
+    total_ratio: float | None = Field(default=None, description="前十大合计占净值比例（%）")
+
+
 class FilterOption(BaseModel):
     value: str | int
     label: str
