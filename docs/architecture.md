@@ -22,7 +22,8 @@
 ```
 
 - 两个前端**不共享运行时**，只共享 `packages/shared` 的类型与常量（编译期）。
-- 门户是只读消费方：仅调用 `/portal/*` 公开接口；后台调用 `/admin/*` 与 `/auth/*` 需要登录。
+- 门户是只读消费方：仅调用 `/portal/**` 公开接口；后台调用 `/admin/**`（含 `/admin/auth/**`）需要登录。
+  URL 前缀即归属，看地址就能判断权限要求。
 
 ## monorepo 依赖关系
 
@@ -39,7 +40,7 @@ services/api （独立 Python 工程，不参与 pnpm workspace）
 
 | 层 | 目录 | 职责 | 禁止 |
 | --- | --- | --- | --- |
-| 路由 | `app/api/v1/endpoints` | 参数解析、鉴权依赖、调用 service、包装响应 | 写 SQL、写业务分支 |
+| 路由 | `app/api/v1/{portal,admin,common}` | 参数解析、鉴权依赖、调用 service、包装响应 | 写 SQL、写业务分支 |
 | 服务 | `app/services` | 业务规则、事务提交、跨仓储编排 | 依赖 Request / HTTP 概念 |
 | 仓储 | `app/repositories` | 查询构造、CRUD、软删除过滤 | 抛 HTTP 异常 |
 | 模型 | `app/models` | 表结构、索引、关系 | 业务逻辑 |

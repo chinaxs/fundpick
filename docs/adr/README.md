@@ -12,3 +12,4 @@
 | [0005](0005-package-boundaries.md) | shared 包不依赖任何框架 | 已采纳 | 2026-11-05 |
 | [0006](0006-fund-data-source.md) | 第一期基金数据源用 AkShare（临时，商用前必换） | 已采纳 | 2026-11-06 |
 | [0007](0007-same-origin-proxy.md) | 门户浏览器请求走同源反代，不依赖 CORS 白名单 | 已采纳 | 2026-11-06 |
+| [0008](0008-api-grouping-by-consumer.md) | 接口按调用方分组：portal / admin / common | 已采纳 | 2026-11-06 |

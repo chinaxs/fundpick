@@ -15,7 +15,7 @@
                                │ HTTP /api/v1
 ┌──────────────────────────────▼──────────────────────────────────┐
 │                        services/api（FastAPI）                   │
-│  endpoints → services → repositories → models                   │
+│  api/v1 → services → repositories → models                      │
 │                     ↑                                           │
 │                   ai/（tools 调 services，不直接碰库）            │
 └──────────────────────────────┬──────────────────────────────────┘
@@ -27,7 +27,7 @@
 
 | 模块 | 路径 | 一句话职责 | 不该做什么 | 文档 |
 | --- | --- | --- | --- | --- |
-| 路由层 | `app/api/v1/endpoints/` | 解析参数、鉴权、调用 service、包装响应 | 写 SQL、写业务分支 | [README](../services/api/app/api/README.md) |
+| 路由层 | `app/api/v1/{portal,admin,common}/` | 解析参数、鉴权、调用 service、包装响应 | 写 SQL、写业务分支 | [README](../services/api/app/api/README.md) |
 | 依赖注入 | `app/api/deps.py` | 会话、当前用户、权限、request_id | 放业务逻辑 | 同上 |
 | 业务层 | `app/services/` | 业务规则、事务边界、跨仓储编排 | 依赖 HTTP 概念 | [README](../services/api/app/services/README.md) |
 | 仓储层 | `app/repositories/` | 查询构造、CRUD、软删除过滤 | 抛业务异常、写规则 | [README](../services/api/app/repositories/README.md) |
@@ -75,7 +75,7 @@
 
 | 需求 | 落点 | 步骤 |
 | --- | --- | --- |
-| 加一个业务表 | models → schemas → repositories → services → endpoints | 见 [development.md](development.md#新增一个后端业务模块以-product-为例) |
+| 加一个业务表 | models → schemas → repositories → services → api/v1 | 见 [development.md](development.md#新增一个后端业务模块以-product-为例) |
 | 加一个后台页面 | `views/` + `api/` + `router/` | 见 [development.md](development.md#新增一个后台页面) |
 | 加一个门户页面 | `app/pages/` | 见 [development.md](development.md#新增一个门户页面) |
 | 加基金相关功能 | 见 [fund-module.md](fund-module.md) | 模型 → 采集 → 服务 → 接口 → 页面 |

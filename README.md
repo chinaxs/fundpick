@@ -53,7 +53,7 @@ project_study/
 ├── services/
 │   └── api/                    # FastAPI
 │       ├── app/
-│       │   ├── api/v1/endpoints/   # 路由（health / auth / users / articles / portal）
+│       │   ├── api/v1/             # 路由：portal（门户·匿名）/ admin（后台·登录）/ common（探活）
 │       │   ├── core/               # 配置、安全、日志、异常
 │       │   ├── db/                 # 引擎、会话、ORM 基类
 │       │   ├── models/             # SQLAlchemy 模型
@@ -161,8 +161,8 @@ OPENAI_BASE_URL=https://api.deepseek.com/v1   # 任意 OpenAI 兼容端点
 AI_MODEL=deepseek-chat
 ```
 
-- 智能体对话：`POST /api/v1/ai/chat`（内容助手，可查文章、给选题建议）
-- 确定性工作流：`POST /api/v1/ai/review`（规则校验 + 模型建议）
-- 状态查询：`GET /api/v1/ai/status`
+- 智能体对话：`POST /api/v1/admin/ai/chat`（内容助手，可查文章、给选题建议）
+- 确定性工作流：`POST /api/v1/admin/ai/review`（规则校验 + 模型建议）
+- 状态查询：`GET /api/v1/admin/ai/status`
 
 设计原则、加工具/加流程的方法见 [docs/ai.md](docs/ai.md)。

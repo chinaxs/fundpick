@@ -61,7 +61,7 @@ AI_MODEL=deepseek-chat
 验证：
 
 ```bash
-curl http://127.0.0.1:8000/api/v1/ai/status -H "Authorization: Bearer <token>"
+curl http://127.0.0.1:8000/api/v1/admin/ai/status -H "Authorization: Bearer <token>"
 # {"code":0,"data":{"enabled":true,"ready":true,"model":"deepseek-chat",...}}
 ```
 
@@ -69,9 +69,9 @@ curl http://127.0.0.1:8000/api/v1/ai/status -H "Authorization: Bearer <token>"
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/v1/ai/status` | 是否启用、当前模型 |
-| POST | `/api/v1/ai/chat` | 智能体对话，body：`{message, thread_id?}` |
-| POST | `/api/v1/ai/review` | 文章质检，body：`{title, summary, content}` |
+| GET | `/api/v1/admin/ai/status` | 是否启用、当前模型 |
+| POST | `/api/v1/admin/ai/chat` | 智能体对话，body：`{message, thread_id?}` |
+| POST | `/api/v1/admin/ai/review` | 文章质检，body：`{title, summary, content}` |
 
 对话是有状态的：同一个 `thread_id` 会延续上下文（`InMemorySaver`）。生产环境应换成持久化 checkpointer。
 
@@ -152,7 +152,7 @@ def build_tag_graph():
 当前锁定：`langchain 1.4.x` / `langgraph 1.2.x` / `deepagents 0.7.x` / `langchain-openai 1.7.x`。
 
 - LangChain 1.x 与 0.x 的 API 不兼容（`AgentExecutor` 已移除，改用 `create_agent`），**不要照搬 0.x 教程**。
-- `deepagents` 仍处于 0.x，接口可能变。升级时先跑 `tests/test_ai.py`，再手动验证 `/ai/chat`。
+- `deepagents` 仍处于 0.x，接口可能变。升级时先跑 `tests/test_ai.py`，再手动验证 `/admin/ai/chat`。
 - 升级命令：`uv add "deepagents>=0.8"`，并同步更新本文档的版本号。
 
 ## 9. 排障

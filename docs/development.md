@@ -29,8 +29,9 @@ docs: 补充接口约定
 3. `app/schemas/product.py`：`ProductCreate` / `ProductUpdate` / `ProductRead`
 4. `app/repositories/product.py`：继承 `BaseRepository[Product]`，写专属查询
 5. `app/services/product.py`：业务规则，**显式 `await session.commit()`**
-6. `app/api/v1/endpoints/products.py`：路由，声明 `response_model=ApiResponse[...]`
-7. `app/api/v1/router.py`：`api_router.include_router(products.router)`
+6. `app/api/v1/admin/products.py`：路由，声明 `response_model=ApiResponse[...]`
+   （面向门户的只读接口放 `app/api/v1/portal/`，探活类放 `common/`）
+7. 在 `app/api/v1/admin/__init__.py` 里 `router.include_router(products.router)`
 8. `make revision m="add product"` → 检查生成的迁移 → `make migrate`
 9. `packages/shared/src/types/api.ts`：同步前端类型
 
