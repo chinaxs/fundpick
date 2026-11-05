@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
+from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
+from app.datasources import get_provider
 from app.models.fund import Fund, FundType, RiskLevel
+from app.models.fund_nav import FundNav
 from app.repositories.fund import FundRepository
 from app.schemas.common import PageResult
 from app.schemas.fund import (
@@ -19,6 +23,12 @@ from app.schemas.fund import (
     FundSortBy,
     MetricRead,
     NavPointRead,
+)
+from app.schemas.stats import (
+    DistributionBucket,
+    OverviewStats,
+    ReturnDistribution,
+    TypeStat,
 )
 
 TYPE_LABELS: dict[str, str] = {
@@ -142,6 +152,51 @@ class FundService:
             for m in rows
         ]
 
+    async def ensure_navs(self, code: str, limit: int = 500) -> list[NavPointRead]:
+        """取净值序列；本地没有就实时回填一次。
+
+        全市场 1 万只 × 数千条 ≈ 千万级行，全量预拉不划算（数小时），
+        而详情页是"按需访问"，第一次访问时补这一只最经济。
+        """
+        fund = await self._require_fund(code)
+        rows = await self.funds.navs(fund.id, limit)
+        if rows:
+            return self._to_nav_reads(rows)
+
+        points = await asyncio.to_thread(get_provider().nav_history, code)
+        if not points:
+            return []
+
+        payload = [
+            {
+                "fund_id": fund.id,
+                "nav_date": p.nav_date,
+                "unit_nav": p.unit_nav,
+                "daily_return": p.daily_return,
+            }
+            for p in points
+        ]
+        # 分批 upsert，单只基金的净值可能有几千条
+        for i in range(0, len(payload), 500):
+            batch = payload[i : i + 500]
+            stmt = insert(FundNav).values(batch)
+            stmt = stmt.on_duplicate_key_update(
+                unit_nav=stmt.inserted.unit_nav,
+                daily_return=stmt.inserted.daily_return,
+            )
+            await self.session.execute(stmt)
+        await self.session.commit()
+
+        rows = await self.funds.navs(fund.id, limit)
+        return self._to_nav_reads(rows)
+
+    @staticmethod
+    def _to_nav_reads(rows: list[FundNav]) -> list[NavPointRead]:
+        return [
+            NavPointRead(nav_date=n.nav_date, unit_nav=n.unit_nav, daily_return=n.daily_return)
+            for n in rows
+        ]
+
     async def navs(self, code: str, limit: int = 500) -> list[NavPointRead]:
         fund = await self._require_fund(code)
         rows = await self.funds.navs(fund.id, limit)
@@ -165,6 +220,36 @@ class FundService:
             companies=[FilterOption(value=c.id, label=c.name) for c in companies],
             periods=[FilterOption(value=k, label=v) for k, v in PERIOD_LABELS.items()],
             sort_fields=[FilterOption(value=k, label=v) for k, v in SORT_LABELS.items()],
+        )
+
+    # ---------------------------------------------------------- 统计
+    async def overview_stats(self) -> OverviewStats:
+        """首页概览：数量、公司数、类型分布与各类型平均收益。"""
+        rows = await self.funds.type_distribution()
+        total = sum(count for _, count, _ in rows)
+        return OverviewStats(
+            total_funds=total,
+            total_companies=await self.funds.company_count(),
+            latest_nav_date=await self.funds.latest_nav_date(),
+            type_distribution=[
+                TypeStat(
+                    type=fund_type,
+                    label=TYPE_LABELS.get(fund_type, fund_type),
+                    count=count,
+                    avg_return=round(avg, 2) if avg is not None else None,
+                )
+                for fund_type, count, avg in rows
+            ],
+        )
+
+    async def return_distribution(self, period: str = "1y") -> ReturnDistribution:
+        rows = await self.funds.return_buckets(period)
+        mapping = dict(rows)
+        # 固定顺序输出，前端画图不用再排序
+        order = ["<-30%", "-30~-20%", "-20~-10%", "-10~0%", "0~10%", "10~20%", "20~50%", ">50%"]
+        buckets = [DistributionBucket(label=label, count=mapping.get(label, 0)) for label in order]
+        return ReturnDistribution(
+            period=period, total=sum(b.count for b in buckets), buckets=buckets
         )
 
     async def overview(self) -> dict[str, int]:

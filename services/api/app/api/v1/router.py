@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     health,
     portal,
     portal_funds,
+    portal_stats,
     users,
 )
 
@@ -20,6 +21,7 @@ api_router.include_router(users.router)
 
 # 基金域
 api_router.include_router(portal_funds.router)
+api_router.include_router(portal_stats.router)
 api_router.include_router(admin_funds.router)
 
 # 内容域（原文章模块，后续改造为研报/基金点评）

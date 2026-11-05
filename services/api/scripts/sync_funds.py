@@ -17,6 +17,7 @@ import argparse
 import asyncio
 import time
 from collections.abc import Iterable, Sequence
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -39,6 +40,7 @@ from app.models import (
 logger = get_logger("sync_funds")
 BATCH = 500
 STARTED_AT = time.time()
+_EMPTY_TOKENS = {"", "---", "--", "nan", "NaN", "NaT", "None", "null"}
 
 
 # ---------------------------------------------------------------- 工具
@@ -323,12 +325,17 @@ async def sync_snapshots(session: AsyncSession) -> int:
 
 async def sync_risks(session: AsyncSession, limit: int | None) -> int:
     """风险指标：逐只拉取，写入 1y/3y/5y 的波动率、夏普、最大回撤。"""
-    # 优先补给"有区间收益数据"的基金，否则会先跑一堆没有排名的空壳基金
+    # 优先补给"有区间收益数据"的基金；同时跳过已采过的，便于分批续跑
+    done = select(FundMetric.fund_id).where(FundMetric.sharpe.is_not(None))
     funds = (
         await session.execute(
             select(Fund.id, Fund.code)
             .join(FundMetric, FundMetric.fund_id == Fund.id)
-            .where(Fund.deleted_at.is_(None), FundMetric.period == "1y")
+            .where(
+                Fund.deleted_at.is_(None),
+                FundMetric.period == "1y",
+                Fund.id.not_in(done),
+            )
             .distinct()
             .order_by(Fund.id)
         )
@@ -368,6 +375,60 @@ async def sync_risks(session: AsyncSession, limit: int | None) -> int:
     return done
 
 
+async def sync_details(session: AsyncSession, limit: int | None) -> int:
+    """补全基金档案：全称、规模、成立日期。
+
+    逐只请求（约 0.3 秒/只），因此按近一年收益降序，优先补用户最常看到的头部基金。
+    """
+    from sqlalchemy import or_, update
+
+    stmt = (
+        select(Fund.id, Fund.code)
+        .join(FundMetric, FundMetric.fund_id == Fund.id)
+        .where(
+            FundMetric.period == "1y",
+            FundMetric.return_rate.is_not(None),
+            or_(Fund.scale.is_(None), Fund.inception_date.is_(None)),
+        )
+        .order_by(FundMetric.return_rate.desc())
+    )
+    if limit:
+        stmt = stmt.limit(limit)
+    funds = (await session.execute(stmt)).all()
+
+    provider = get_provider()
+    updated = 0
+    for idx, (fund_id, code) in enumerate(funds, start=1):
+        try:
+            profile = await asyncio.to_thread(provider.fund_profile, code)
+        except Exception as exc:
+            logger.debug("[档案] %s 失败：%s", code, exc)
+            continue
+        if profile is None:
+            continue
+
+        values: dict[str, Any] = {}
+        if profile.scale is not None:
+            values["scale"] = profile.scale
+        if profile.inception_date is not None:
+            values["inception_date"] = profile.inception_date
+        if profile.full_name:
+            values["full_name"] = profile.full_name
+        if not values:
+            continue
+
+        await session.execute(update(Fund).where(Fund.id == fund_id).values(**values))
+        updated += 1
+        if idx % 50 == 0:
+            await session.commit()
+            logger.info("[档案] %d/%d 已处理（%s）", idx, len(funds), _elapsed())
+        await asyncio.sleep(0.05)
+
+    await session.commit()
+    logger.info("[档案] 更新 %d 只（%s）", updated, _elapsed())
+    return updated
+
+
 async def sync_navs(session: AsyncSession, limit: int | None) -> int:
     """净值序列：只拉取已有指标、按浏览次数排序的前 N 只，避免全量拉爆。
 
@@ -405,6 +466,82 @@ async def sync_navs(session: AsyncSession, limit: int | None) -> int:
 
     logger.info("[净值] 写入 %d 条（%s）", total, _elapsed())
     return total
+
+
+def _load_scale_rows() -> list[dict[str, Any]]:
+    """开放式基金规模与成立日期。
+
+    数据源只给"最近总份额"和"单位净值"，规模按 份额 × 净值 换算成亿元；
+    总募集规模是发行期数据，不能当当前规模用。
+    """
+    import akshare as ak
+
+    df = ak.fund_scale_open_sina()
+    out: list[dict[str, Any]] = []
+    for row in df.itertuples(index=False):
+        code = str(getattr(row, "基金代码", "")).strip()
+        if not code:
+            continue
+        shares = to_num(getattr(row, "最近总份额", None))
+        nav = to_num(getattr(row, "单位净值", None))
+        scale = round(shares * nav / 1e8, 4) if shares and nav else None
+        out.append(
+            {
+                "code": code,
+                "scale": scale,
+                "inception_date": _parse_date(getattr(row, "成立日期", None)),
+            }
+        )
+    return out
+
+
+def _parse_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    text = str(value).strip()[:10]
+    if text in _EMPTY_TOKENS:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+async def sync_scale(session: AsyncSession) -> int:
+    """补齐基金规模与成立日期（约 7000 只可覆盖）。
+
+    用 UPDATE 而不是 upsert：INSERT ... ON DUPLICATE 要求提供所有非空字段（如 name），
+    而这里只拿到部分字段，逐条 UPDATE 更稳妥。
+    """
+    from sqlalchemy import update
+
+    rows = await asyncio.to_thread(_load_scale_rows)
+    codes = [r["code"] for r in rows if r["scale"] is not None or r["inception_date"] is not None]
+    if not codes:
+        return 0
+
+    existing = dict(
+        (await session.execute(select(Fund.code, Fund.id).where(Fund.code.in_(codes)))).all()
+    )
+
+    updated = 0
+    for row in rows:
+        fund_id = existing.get(row["code"])
+        if fund_id is None:
+            continue
+        values: dict[str, Any] = {}
+        if row["scale"] is not None:
+            values["scale"] = row["scale"]
+        if row["inception_date"] is not None:
+            values["inception_date"] = row["inception_date"]
+        if not values:
+            continue
+        await session.execute(update(Fund).where(Fund.id == fund_id).values(**values))
+        updated += 1
+
+    await session.commit()
+    logger.info("[规模] 更新 %d 只（%s）", updated, _elapsed())
+    return updated
 
 
 async def link_managers(session: AsyncSession, manager_ids: dict[tuple[str, str], int]) -> int:
@@ -476,6 +613,10 @@ async def run(mode: str, limit: int | None) -> None:
             await sync_snapshots(session)
         if mode in {"risk", "all"}:
             await sync_risks(session, limit)
+        if mode in {"scale", "all"}:
+            await sync_scale(session)
+        if mode in {"detail", "all"}:
+            await sync_details(session, limit)
         if mode in {"navs", "all"}:
             await sync_navs(session, limit)
     await dispose_engine()
@@ -485,7 +626,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="基金数据同步")
     parser.add_argument(
         "--mode",
-        choices=["quick", "risk", "navs", "all"],
+        choices=["quick", "risk", "scale", "detail", "navs", "all"],
         default="quick",
         help="quick=基础数据；risk=风险指标；navs=净值序列；all=全部",
     )

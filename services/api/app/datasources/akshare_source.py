@@ -13,7 +13,7 @@ import akshare as ak
 from pandas import DataFrame
 
 from app.core.logging import get_logger
-from app.datasources.base import FundBasic, FundSnapshot, NavPoint, RiskMetric
+from app.datasources.base import FundBasic, FundProfile, FundSnapshot, NavPoint, RiskMetric
 
 # 数据源的中文周期 -> 内部周期
 PERIOD_MAP = {"近1年": "1y", "近3年": "3y", "近5年": "5y"}
@@ -103,6 +103,23 @@ class AkShareProvider:
                 )
             )
         return snapshots
+
+    def fund_profile(self, code: str) -> FundProfile | None:
+        try:
+            df: DataFrame = ak.fund_individual_basic_info_xq(symbol=code)
+        except Exception as exc:  # 单只失败不影响整体
+            logger.debug("基金档案 %s 获取失败: %s", code, exc)
+            return None
+
+        info = {str(row[0]).strip(): str(row[1]).strip() for row in df.itertuples(index=False)}
+        # "最新规模" 形如 "29.19亿"，去掉单位转数值
+        scale_text = info.get("最新规模", "").replace("亿", "").strip()
+        return FundProfile(
+            full_name=info.get("基金全称") or None,
+            scale=_to_float(scale_text),
+            inception_date=_to_date(info.get("成立时间")),
+            company_name=info.get("基金公司") or None,
+        )
 
     def risk_metrics(self, code: str) -> list[RiskMetric]:
         df: DataFrame = ak.fund_individual_analysis_xq(symbol=code)

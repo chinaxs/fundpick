@@ -70,5 +70,5 @@ async def fund_navs(
     request_id: RequestIdDep,
     limit: int = Query(default=500, ge=30, le=2000, description="返回最近 N 个净值点"),
 ) -> ApiResponse[list[NavPointRead]]:
-    data = await FundService(session).navs(code, limit)
+    data = await FundService(session).ensure_navs(code, limit)
     return ApiResponse(data=data, request_id=request_id)

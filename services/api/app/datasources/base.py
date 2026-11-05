@@ -47,6 +47,16 @@ class FundSnapshot:
 
 
 @dataclass(slots=True)
+class FundProfile:
+    """单只基金档案（逐只请求才能拿到的字段）。"""
+
+    full_name: str | None = None
+    scale: float | None = None
+    inception_date: date | None = None
+    company_name: str | None = None
+
+
+@dataclass(slots=True)
 class RiskMetric:
     """风险指标（由数据源直接提供，避免本地全量算净值）。"""
 
@@ -84,6 +94,10 @@ class FundDataProvider(Protocol):
 
     def nav_history(self, code: str) -> list[NavPoint]:
         """单只基金的历史净值序列（用于详情页曲线）。"""
+        ...
+
+    def fund_profile(self, code: str) -> FundProfile | None:
+        """单只基金档案：全称、规模、成立日期、公司。"""
         ...
 
     def risk_metrics(self, code: str) -> list[RiskMetric]:

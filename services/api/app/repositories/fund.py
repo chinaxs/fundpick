@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -108,6 +109,60 @@ class FundRepository(BaseRepository[Fund]):
     async def companies(self) -> list[FundCompany]:
         stmt = select(FundCompany).order_by(FundCompany.name)
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def type_distribution(self, period: str = "1y") -> list[tuple[str, int, float | None]]:
+        """按基金类型统计数量与区间平均收益。"""
+        metric = aliased(FundMetric)
+        stmt = (
+            select(
+                Fund.type,
+                func.count(Fund.id),
+                func.avg(metric.return_rate),
+            )
+            .outerjoin(metric, and_(metric.fund_id == Fund.id, metric.period == period))
+            .where(Fund.deleted_at.is_(None), Fund.latest_nav.is_not(None))
+            .group_by(Fund.type)
+            .order_by(func.count(Fund.id).desc())
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            (row[0], int(row[1]), float(row[2]) if row[2] is not None else None) for row in rows
+        ]
+
+    async def return_buckets(self, period: str = "1y") -> list[tuple[str, int]]:
+        """区间收益分布，用于首页直方图。
+
+        分桶放在 SQL 里做，避免把 1.8 万条收益拉到应用层再分组。
+        """
+        from sqlalchemy import case, literal
+
+        rate = FundMetric.return_rate
+        bucket = case(
+            (rate < -30, literal("<-30%")),
+            (rate < -20, literal("-30~-20%")),
+            (rate < -10, literal("-20~-10%")),
+            (rate < 0, literal("-10~0%")),
+            (rate < 10, literal("0~10%")),
+            (rate < 20, literal("10~20%")),
+            (rate < 50, literal("20~50%")),
+            else_=literal(">50%"),
+        ).label("bucket")
+
+        stmt = (
+            select(bucket, func.count())
+            .where(FundMetric.period == period, FundMetric.return_rate.is_not(None))
+            .group_by(bucket)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [(str(row[0]), int(row[1])) for row in rows]
+
+    async def company_count(self) -> int:
+        stmt = select(func.count()).select_from(FundCompany)
+        return int((await self.session.execute(stmt)).scalar_one())
+
+    async def latest_nav_date(self) -> date | None:
+        stmt = select(func.max(Fund.latest_nav_date))
+        return (await self.session.execute(stmt)).scalar_one()
 
     async def count_all(self) -> int:
         stmt = select(func.count()).select_from(Fund).where(Fund.deleted_at.is_(None))
