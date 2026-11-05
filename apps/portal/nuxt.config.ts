@@ -3,6 +3,13 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // 只在登录/注册弹窗等局部使用，按需自动引入，不整包进首屏
+  modules: ['@element-plus/nuxt'],
+
+  elementPlus: {
+    importStyle: 'css',
+  },
+
   // Nuxt 4 默认源码目录即 app/
   srcDir: 'app/',
 

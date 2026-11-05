@@ -5,6 +5,7 @@
 | --- | --- |
 | `usePortalApi.ts` | `useApiBase()` / `useArticleList(params)` / `useArticleDetail(slug)` |
 | `useFundApi.ts` | `useFundList` / `useFundFilters` / `useFundDetail` / `useFundMetrics` / `useFundNavs` / `useOverviewStats` / `useReturnDistribution` |
+| `useAuth.ts` | 登录态：`ensureSession` / `login` / `register` / `logout` / `openAuth`，令牌存 cookie |
 
 ## 请求链路（改之前必读）
 
@@ -21,6 +22,15 @@ SSR     ----------------- 直连后端 -------------------------------------->  
 **不要把浏览器基址改成绝对地址。** `localhost`、`127.0.0.1`、`[::1]` 在浏览器里是
 不同的源，一旦跨域就必须穷举 CORS 白名单，漏一个组合整页报错，且 `curl` 测不出来
 （详见 [ADR-0007](../../../../docs/adr/0007-same-origin-proxy.md)）。
+
+## 登录态为什么用 cookie
+
+`useState` 存用户对象、`useCookie` 存令牌。用 cookie 而非 localStorage 的原因：
+SSR 阶段服务端读不到 localStorage，会在首屏渲染成"未登录"，水合后才闪成已登录。
+布局里 `await auth.ensureSession()` 让服务端就把用户信息取回来。
+
+`useFundNavs` 的 `period` 支持传 ref：切换区间时 `watch` 触发重新请求，
+但 `useAsyncData` 的 key 不含 period，避免每切一次就多一个缓存条目。
 
 ## 为什么用 `useAsyncData` 而不是 `useFetch`
 

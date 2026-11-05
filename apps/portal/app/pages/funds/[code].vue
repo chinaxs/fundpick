@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { FUND_PERIOD_MAP, FUND_TYPE_MAP, RISK_LEVEL_MAP, type FundMetric } from '@project/shared'
+import {
+  FUND_PERIOD_MAP,
+  FUND_TYPE_MAP,
+  NAV_RANGE_MAP,
+  NAV_RANGE_ORDER,
+  RISK_LEVEL_MAP,
+  fmtMagnitude,
+  fmtPct,
+  toneOf,
+  type FundMetric,
+  type NavRange,
+} from '@project/shared'
 
 const route = useRoute()
 const code = String(route.params.code)
@@ -10,7 +21,12 @@ if (!fund.value) {
 }
 
 const { data: metrics } = await useFundMetrics(code)
-const { data: navs } = await useFundNavs(code, 500)
+
+// 曲线区间：默认近 1 年，切换时自动重新请求（composable 内 watch）
+const navRange = ref<NavRange>('1y')
+const { data: navs, pending: navsPending } = await useFundNavs(code, navRange)
+
+const navRangeLabel = computed(() => NAV_RANGE_MAP[navRange.value])
 
 const metricMap = computed(() => {
   const map = new Map<string, FundMetric>()
@@ -47,22 +63,6 @@ const statCards = computed(() => [
     tone: 'neutral' as const,
   },
 ])
-
-function fmtPct(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '—'
-  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
-/** 幅度类指标（回撤、波动率）：不带正负号，避免被误读为涨跌 */
-function fmtMagnitude(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '—'
-  return `${Math.abs(value).toFixed(2)}%`
-}
-
-function toneOf(value: number | null | undefined): 'up' | 'down' | 'neutral' {
-  if (value === null || value === undefined || value === 0) return 'neutral'
-  return value > 0 ? 'up' : 'down'
-}
 
 function money(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
@@ -133,15 +133,32 @@ useSeoMeta({
 
       <!-- 净值曲线 -->
       <section class="card block">
-        <div class="block__head">
+        <div class="block__head block__head--wrap">
           <div>
             <h2 class="block__title">净值走势</h2>
-            <p class="block__sub">最近 {{ navs?.length ?? 0 }} 个交易日单位净值</p>
+            <p class="block__sub">
+              {{ navRangeLabel }} · {{ navs?.length ?? 0 }} 个数据点
+              <span v-if="navRange === 'all'" class="block__hint">（超长区间已等距抽样）</span>
+            </p>
           </div>
-          <span class="pill">T+1 官方净值</span>
+
+          <div class="range">
+            <button
+              v-for="item in NAV_RANGE_ORDER"
+              :key="item"
+              type="button"
+              class="range__btn"
+              :class="{ 'range__btn--active': navRange === item }"
+              @click="navRange = item"
+            >
+              {{ NAV_RANGE_MAP[item] }}
+            </button>
+          </div>
         </div>
 
-        <FundNavChart :points="navs ?? []" :height="300" />
+        <div class="chart-wrap" :class="{ 'chart-wrap--pending': navsPending }">
+          <FundNavChart :points="navs ?? []" :height="300" />
+        </div>
       </section>
 
       <!-- 区间表现 -->
@@ -396,6 +413,53 @@ useSeoMeta({
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
+}
+
+.block__hint {
+  color: var(--muted-2);
+}
+
+/* 净值区间切换 */
+.range {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.range__btn {
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.range__btn:hover {
+  color: var(--brand);
+}
+
+.range__btn--active {
+  color: #fff;
+  background: var(--brand);
+}
+
+.chart-wrap {
+  min-height: 300px;
+  transition: opacity 0.2s ease;
+}
+
+/* 切换区间时轻微淡出，避免旧曲线"跳"一下 */
+.chart-wrap--pending {
+  opacity: 0.45;
 }
 
 .table-wrap {

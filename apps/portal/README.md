@@ -17,7 +17,7 @@ app/
 ├── assets/css/main.css     全局样式与设计变量
 ├── components/             AppHeader · AppFooter · ArticleCard
 │                           FundNavChart · TypeBars · ReturnHistogram（自动导入）
-├── composables/            usePortalApi.ts · useFundApi.ts（数据获取 + 响应解包）
+├── composables/            usePortalApi · useFundApi（数据获取）· useAuth（登录态）
 ├── layouts/default.vue     Header + 内容 + Footer
 ├── pages/                  文件路由
 │   ├── index.vue           首页（市场概览 + 榜单）
@@ -38,6 +38,20 @@ const { data, pending } = await useFundList({ page: 1, period: '1y', sort_by: 'r
 ```
 
 SSR 时于服务端发起请求，客户端激活后复用同一份 payload，不会重复请求。
+
+## 会员体系
+
+登录/注册走 Element Plus 弹窗（`AuthDialog`，全局单例），由 `useAuth().openAuth()` 唤起。
+
+- 令牌存 **cookie**（`portal_at` / `portal_rt`）而不是 localStorage：
+  SSR 阶段服务端要能读到，否则首屏会先渲染"未登录"再闪成已登录。
+- access 2 小时、refresh 7 天；access 过期后 `ensureSession()` 自动用 refresh 续期。
+- 门户注册的账号 `is_staff=False`，**不能登录后台**，也调不动 `/admin/**`。
+
+详见 [ADR-0009](../../docs/adr/0009-portal-member-isolation.md)。
+
+Element Plus 通过 `@element-plus/nuxt` 按需引入，只用在弹窗与菜单，
+不整包进首屏；主站视觉仍由 `assets/css/main.css` 的设计变量控制。
 
 ## 请求链路与跨域
 

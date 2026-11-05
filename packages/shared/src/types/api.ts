@@ -132,6 +132,9 @@ export type FundStatus = 'open' | 'suspended' | 'closed'
 
 export type FundPeriod = '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | 'ytd' | 'all'
 
+/** 净值曲线的时间区间（与排行口径的 FundPeriod 区分） */
+export type NavRange = '1m' | '3m' | '6m' | '1y' | '3y' | 'all'
+
 export type FundSortBy = 'return' | 'sharpe' | 'max_drawdown' | 'volatility' | 'scale' | 'nav'
 
 export type SortOrder = 'asc' | 'desc'
@@ -240,4 +243,23 @@ export interface ReturnDistribution {
   period: string
   total: number
   buckets: DistributionBucket[]
+}
+
+// ---------------------------------------------------------------- 门户会员
+/** 门户登录用户。与后台 User 分开：不含 is_staff / is_superuser 等内部字段 */
+export interface PortalUser {
+  id: number
+  username: string
+  email: string | null
+  full_name: string | null
+  avatar_url: string | null
+  created_at: string
+}
+
+/** 登录/注册返回的令牌对 */
+export interface TokenBundle {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
 }

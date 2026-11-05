@@ -12,6 +12,7 @@ import type {
   FundMetric,
   FundQuery,
   NavPoint,
+  NavRange,
   PageResult,
 } from '@project/shared'
 import { useApiBase } from './usePortalApi'
@@ -97,13 +98,22 @@ export function useFundMetrics(code: string) {
   })
 }
 
-/** 净值序列（图表用） */
-export function useFundNavs(code: string, limit = 500) {
-  return useAsyncData<NavPoint[]>(`fund-navs-${code}-${limit}`, async () => {
-    const res = await $fetch<ApiResponse<NavPoint[]>>(`/portal/funds/${code}/navs`, {
-      baseURL: useApiBase(),
-      query: { limit },
-    })
-    return res.data ?? []
-  })
+/**
+ * 净值序列（图表用）。
+ *
+ * period 支持传 ref：切换区间时自动重新请求，SSR 阶段先取默认区间。
+ * key 不含 period，避免每切一次就多一个缓存条目。
+ */
+export function useFundNavs(code: string, period: MaybeRef<NavRange> = '1y', limit = 800) {
+  return useAsyncData<NavPoint[]>(
+    `fund-navs-${code}`,
+    async () => {
+      const res = await $fetch<ApiResponse<NavPoint[]>>(`/portal/funds/${code}/navs`, {
+        baseURL: useApiBase(),
+        query: { period: unref(period), limit },
+      })
+      return res.data ?? []
+    },
+    { watch: [() => unref(period)] },
+  )
 }

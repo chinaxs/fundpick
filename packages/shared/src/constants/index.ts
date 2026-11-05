@@ -75,3 +75,16 @@ export const FUND_SORT_MAP = {
   scale: '规模',
   nav: '最新净值',
 } as const
+
+/** 净值曲线区间字典 */
+export const NAV_RANGE_MAP = {
+  '1m': '近1月',
+  '3m': '近3月',
+  '6m': '近6月',
+  '1y': '近1年',
+  '3y': '近3年',
+  all: '成立来',
+} as const
+
+/** 净值曲线区间的展示顺序 */
+export const NAV_RANGE_ORDER = ['1m', '3m', '6m', '1y', '3y', 'all'] as const

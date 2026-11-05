@@ -51,3 +51,22 @@ export function toSlug(text: string): string {
     .replace(/^-|-$/g, '')
   return ascii || `post-${Math.random().toString(36).slice(2, 10)}`
 }
+
+/** 百分比，带正负号（用于收益类指标） */
+export function fmtPct(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined) return '—'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(digits)}%`
+}
+
+/** 幅度类指标（最大回撤、波动率）：取绝对值，不带正负号，避免被读成涨跌 */
+export function fmtMagnitude(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined) return '—'
+  return `${Math.abs(value).toFixed(digits)}%`
+}
+
+/** 数值涨跌方向，用于配色（涨红跌绿） */
+export function toneOf(value: number | null | undefined): 'up' | 'down' | 'neutral' {
+  if (value === null || value === undefined || value === 0) return 'neutral'
+  return value > 0 ? 'up' : 'down'
+}
