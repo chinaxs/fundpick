@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { FUND_TYPE_MAP, type FundType } from '@project/shared'
 
-const { data: overview } = await useFundList({ page_size: 1 }, 'home-total')
+const { data: stats } = await useOverviewStats()
+const { data: dist } = await useReturnDistribution('1y')
+
 const { data: top1y } = await useFundList(
   { period: '1y', sort_by: 'return', page_size: 6 },
   'home-top-1y',
@@ -14,22 +16,36 @@ const { data: bondTop } = await useFundList(
   { period: '1y', sort_by: 'return', type: 'bond', page_size: 6 },
   'home-bond',
 )
-
 const { data: articles } = await useArticleList({ page: 1, page_size: 3 })
 
-const totalFunds = computed(() => overview.value?.total ?? 0)
+const totalFunds = computed(() => stats.value?.total_funds ?? 0)
+const totalCompanies = computed(() => stats.value?.total_companies ?? 0)
+const latestDate = computed(() => stats.value?.latest_nav_date ?? '—')
+
+/** 正收益基金数量与占比：从分布桶里算，不需要额外请求 */
+const positive = computed(() => {
+  const buckets = dist.value?.buckets ?? []
+  return buckets
+    .filter((b) => !b.label.startsWith('-') && !b.label.startsWith('<'))
+    .reduce((sum, b) => sum + b.count, 0)
+})
+
+const positiveRatio = computed(() => {
+  const total = dist.value?.total ?? 0
+  return total ? (positive.value / total) * 100 : 0
+})
 
 const typeEntries = [
-  { type: 'stock' as FundType, desc: '高风险高弹性，追求长期增值' },
-  { type: 'hybrid' as FundType, desc: '股债搭配，兼顾进攻与防守' },
-  { type: 'bond' as FundType, desc: '波动较小，注重稳健收益' },
-  { type: 'index' as FundType, desc: '被动跟踪指数，费率更低' },
+  { type: 'stock' as FundType, desc: '高弹性，追求长期增值' },
+  { type: 'hybrid' as FundType, desc: '股债搭配，攻守兼备' },
+  { type: 'bond' as FundType, desc: '波动较小，注重稳健' },
+  { type: 'index' as FundType, desc: '被动跟踪，费率更低' },
 ]
 
 const boards = computed(() => [
-  { title: '近 1 年收益榜', desc: '过去一年表现最好的基金', data: top1y.value, period: '1y' },
+  { title: '近 1 年收益榜', desc: '过去一年表现最好', data: top1y.value, period: '1y' },
   { title: '近 3 年收益榜', desc: '穿越周期的中长期赢家', data: top3y.value, period: '3y' },
-  { title: '债券型精选', desc: '低波动品类的领先者', data: bondTop.value, period: '1y' },
+  { title: '债券型精选', desc: '低波动品类领先者', data: bondTop.value, period: '1y' },
 ])
 
 function fmtPct(value: number | null | undefined): string {
@@ -39,80 +55,152 @@ function fmtPct(value: number | null | undefined): string {
 
 useSeoMeta({
   title: '基金数据分析',
-  description: '覆盖全市场公募基金，按收益、回撤、夏普、规模等维度筛选对比。',
-  ogTitle: 'Study 基金 · 基金数据分析',
+  description: '覆盖全市场公募基金，按收益、回撤、夏普、规模筛选对比，提供净值走势与区间表现。',
+  ogTitle: 'Study 基金 · 用数据挑选基金',
 })
 </script>
 
 <template>
   <div>
-    <!-- Hero -->
+    <!-- ============ Hero ============ -->
     <section class="hero">
       <div class="container hero__inner">
-        <span class="hero__badge">全市场公募基金 · 数据驱动</span>
-        <h1 class="hero__title">用数据挑基金<br />而不是靠感觉</h1>
-        <p class="hero__desc">
-          覆盖
-          {{ totalFunds.toLocaleString() }} 只公募基金，按收益、回撤、夏普、规模等维度筛选与对比。
-          所有指标可排序、可追溯，帮助你建立自己的判断标准。
-        </p>
+        <div class="hero__copy">
+          <span class="hero__badge">
+            <span class="dot" />
+            全市场公募基金 · {{ latestDate }} 更新
+          </span>
 
-        <div class="hero__actions">
-          <NuxtLink to="/funds" class="btn">开始筛选</NuxtLink>
-          <NuxtLink to="/about" class="btn btn--ghost">了解方法</NuxtLink>
+          <h1 class="hero__title">
+            用数据挑基金<br />
+            <span class="hero__title-dim">而不是靠感觉</span>
+          </h1>
+
+          <p class="hero__desc">
+            覆盖
+            {{
+              totalFunds.toLocaleString()
+            }}
+            只公募基金，按区间收益、最大回撤、夏普比率、规模多维度筛选。
+            每一个排名都可追溯、可复算。
+          </p>
+
+          <div class="hero__actions">
+            <NuxtLink to="/funds" class="btn">开始筛选</NuxtLink>
+            <NuxtLink to="/about" class="btn btn--ghost-light">了解方法</NuxtLink>
+          </div>
         </div>
 
-        <dl class="hero__stats">
-          <div>
+        <!-- 右侧数据卡 -->
+        <aside class="hero__panel">
+          <div class="panel__head">
+            <span class="panel__title">近 1 年收益分布</span>
+            <span class="panel__count">{{ (dist?.total ?? 0).toLocaleString() }} 只</span>
+          </div>
+
+          <div class="panel__hero">
+            <span class="panel__value num">{{ positiveRatio.toFixed(1) }}<i>%</i></span>
+            <span class="panel__label">基金取得正收益</span>
+          </div>
+
+          <ReturnHistogram :buckets="dist?.buckets ?? []" :height="96" compact />
+
+          <div class="panel__foot">
+            <span>正收益 {{ positive.toLocaleString() }} 只</span>
+            <span class="panel__sep" />
+            <span>负收益 {{ ((dist?.total ?? 0) - positive).toLocaleString() }} 只</span>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 数据条 -->
+      <div class="container">
+        <dl class="metrics">
+          <div class="metrics__item">
             <dt>覆盖基金</dt>
-            <dd>{{ totalFunds.toLocaleString() }}</dd>
+            <dd class="num">{{ totalFunds.toLocaleString() }}</dd>
           </div>
-          <div>
+          <div class="metrics__item">
             <dt>基金公司</dt>
-            <dd>215 家</dd>
+            <dd class="num">{{ totalCompanies }}</dd>
           </div>
-          <div>
-            <dt>数据更新</dt>
-            <dd>每日</dd>
+          <div class="metrics__item">
+            <dt>数据口径</dt>
+            <dd class="num">T+1 净值</dd>
+          </div>
+          <div class="metrics__item">
+            <dt>最近更新</dt>
+            <dd class="num">{{ latestDate }}</dd>
           </div>
         </dl>
       </div>
     </section>
 
-    <!-- 类型入口 -->
+    <!-- ============ 市场结构 ============ -->
     <section class="section section--soft">
       <div class="container">
         <div class="section__head">
           <div>
-            <h2 class="section__title">按类型浏览</h2>
-            <p class="section__desc">不同类型对应不同的风险收益特征</p>
+            <p class="section__eyebrow">Market Structure</p>
+            <h2 class="section__title">市场结构</h2>
+            <p class="section__desc">
+              按基金类型看数量分布与近一年平均收益，快速判断哪类产品正在赚钱。
+            </p>
           </div>
+          <NuxtLink to="/funds" class="section__more">查看全部基金 →</NuxtLink>
         </div>
 
-        <div class="entries">
-          <NuxtLink
-            v-for="item in typeEntries"
-            :key="item.type"
-            :to="{ path: '/funds', query: { type: item.type } }"
-            class="entry"
-          >
-            <div class="entry__name">{{ FUND_TYPE_MAP[item.type] }}</div>
-            <p class="entry__desc">{{ item.desc }}</p>
-            <span class="entry__arrow">→</span>
-          </NuxtLink>
+        <div class="structure">
+          <div class="card structure__chart">
+            <TypeBars :items="stats?.type_distribution ?? []" />
+          </div>
+
+          <div class="structure__side">
+            <NuxtLink
+              v-for="item in typeEntries"
+              :key="item.type"
+              :to="{ path: '/funds', query: { type: item.type } }"
+              class="entry"
+            >
+              <span class="entry__name">{{ FUND_TYPE_MAP[item.type] }}</span>
+              <span class="entry__desc">{{ item.desc }}</span>
+              <span class="entry__arrow">→</span>
+            </NuxtLink>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- 榜单 -->
+    <!-- ============ 收益分布 ============ -->
     <section class="section">
       <div class="container">
         <div class="section__head">
           <div>
-            <h2 class="section__title">排行榜</h2>
-            <p class="section__desc">按区间收益排序，点击查看更多</p>
+            <p class="section__eyebrow">Distribution</p>
+            <h2 class="section__title">收益分布</h2>
+            <p class="section__desc">
+              全市场 {{ (dist?.total ?? 0).toLocaleString() }} 只基金近一年收益分布。
+              大部分产品集中在 -10% 到 +10% 之间，极端收益属于少数。
+            </p>
           </div>
-          <NuxtLink to="/funds" class="section__more">全部基金 →</NuxtLink>
+        </div>
+
+        <div class="card dist-card">
+          <ReturnHistogram :buckets="dist?.buckets ?? []" :height="200" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 榜单 ============ -->
+    <section class="section section--soft">
+      <div class="container">
+        <div class="section__head">
+          <div>
+            <p class="section__eyebrow">Ranking</p>
+            <h2 class="section__title">排行榜</h2>
+            <p class="section__desc">按区间收益排序，点击进入基金详情查看净值走势与风险指标。</p>
+          </div>
+          <NuxtLink to="/funds" class="section__more">完整榜单 →</NuxtLink>
         </div>
 
         <div class="boards">
@@ -123,28 +211,17 @@ useSeoMeta({
             </div>
 
             <ol class="board__list">
-              <li
-                v-for="(fund, index) in board.data?.items ?? []"
-                :key="fund.id"
-                class="board__row"
-              >
-                <span class="board__rank" :class="{ 'board__rank--top': index < 3 }">
-                  {{ index + 1 }}
-                </span>
-                <NuxtLink :to="`/funds/${fund.code}`" class="board__fund">
-                  <span class="board__name">{{ fund.name }}</span>
-                  <span class="board__code">{{ fund.code }}</span>
+              <li v-for="(fund, index) in board.data?.items ?? []" :key="fund.id" class="row">
+                <span class="row__rank" :class="{ 'row__rank--top': index < 3 }">{{
+                  index + 1
+                }}</span>
+
+                <NuxtLink :to="`/funds/${fund.code}`" class="row__fund">
+                  <span class="row__name">{{ fund.name }}</span>
+                  <span class="row__code num">{{ fund.code }}</span>
                 </NuxtLink>
-                <span
-                  class="board__value"
-                  :class="
-                    (fund.return_rate ?? 0) > 0
-                      ? 'board__value--up'
-                      : (fund.return_rate ?? 0) < 0
-                        ? 'board__value--down'
-                        : ''
-                  "
-                >
+
+                <span class="row__value num" :class="(fund.return_rate ?? 0) >= 0 ? 'up' : 'down'">
                   {{ fmtPct(fund.return_rate) }}
                 </span>
               </li>
@@ -154,18 +231,19 @@ useSeoMeta({
               :to="{ path: '/funds', query: { period: board.period, sort_by: 'return' } }"
               class="board__more"
             >
-              查看完整榜单 →
+              查看完整榜单
             </NuxtLink>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 研报 -->
-    <section v-if="articles?.items?.length" class="section section--soft">
+    <!-- ============ 研报 ============ -->
+    <section v-if="articles?.items?.length" class="section">
       <div class="container">
         <div class="section__head">
           <div>
+            <p class="section__eyebrow">Research</p>
             <h2 class="section__title">最新研报</h2>
             <p class="section__desc">市场观察与基金点评</p>
           </div>
@@ -178,10 +256,10 @@ useSeoMeta({
       </div>
     </section>
 
-    <section class="section">
+    <section class="disclaimer-wrap">
       <div class="container">
         <p class="disclaimer">
-          本站数据来源于公开渠道，可能存在延迟或误差；所有内容仅供研究参考，不构成投资建议。
+          本站数据来源于公开渠道，可能存在延迟或误差，仅供研究参考，不构成投资建议。
           基金过往业绩不代表未来表现，投资前请阅读基金合同与招募说明书，并根据自身风险承受能力独立决策。
         </p>
       </div>
@@ -190,44 +268,91 @@ useSeoMeta({
 </template>
 
 <style scoped>
+/* ---------------------------------------------------------------- Hero */
 .hero {
   position: relative;
   overflow: hidden;
-  color: #fff;
-  background:
-    radial-gradient(900px 400px at 80% -10%, rgb(43 108 176 / 55%), transparent 60%),
-    linear-gradient(160deg, #1a202c 0%, #1f3a5f 100%);
+  background: var(--bg-deep);
+}
+
+/* 网格 + 光晕：数据感的主要来源 */
+.hero::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background-image:
+    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 30%, transparent 75%);
+}
+
+.hero::after {
+  position: absolute;
+  top: -180px;
+  left: 50%;
+  width: 900px;
+  height: 480px;
+  content: '';
+  background: radial-gradient(closest-side, rgb(37 99 235 / 32%), transparent);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .hero__inner {
-  padding: 96px 20px 80px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 56px;
+  align-items: center;
+  padding: 84px 24px 64px;
+}
+
+.hero__copy {
+  max-width: 600px;
 }
 
 .hero__badge {
-  display: inline-block;
-  padding: 6px 14px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
   font-size: 12px;
-  letter-spacing: 0.08em;
-  color: #bee3f8;
-  background: rgb(255 255 255 / 8%);
-  border: 1px solid rgb(255 255 255 / 14%);
+  color: #bfdbfe;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 999px;
 }
 
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #4ade80;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(74 222 128 / 20%);
+}
+
 .hero__title {
-  margin: 20px 0 0;
-  font-size: clamp(32px, 5vw, 52px);
+  margin: 22px 0 0;
+  font-size: clamp(34px, 4.4vw, 56px);
   font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.14;
+  color: #fff;
+  letter-spacing: -0.03em;
+}
+
+.hero__title-dim {
+  color: #94a3b8;
 }
 
 .hero__desc {
-  max-width: 600px;
+  max-width: 520px;
   margin: 20px 0 0;
   font-size: 16px;
-  line-height: 1.9;
-  color: #cbd5e0;
+  line-height: 1.85;
+  color: #94a3b8;
 }
 
 .hero__actions {
@@ -237,186 +362,359 @@ useSeoMeta({
   margin-top: 32px;
 }
 
-.hero__stats {
+/* 右侧数据面板 */
+.hero__panel {
+  padding: 22px 24px;
+  background: rgb(255 255 255 / 5%);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 18px;
+  backdrop-filter: blur(14px);
+}
+
+.panel__head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 48px;
-  margin: 56px 0 0;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.hero__stats dt {
+.panel__title {
   font-size: 13px;
-  color: #a0aec0;
+  color: #cbd5e1;
 }
 
-.hero__stats dd {
-  margin: 4px 0 0;
-  font-size: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.panel__count {
+  font-family: var(--font-num);
+  font-size: 12px;
+  color: #64748b;
 }
 
-.entries {
+.panel__hero {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 14px 0 18px;
+}
+
+.panel__value {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.panel__value i {
+  margin-left: 2px;
+  font-size: 18px;
+  font-style: normal;
+  color: #94a3b8;
+}
+
+.panel__label {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.panel__foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.panel__sep {
+  width: 1px;
+  height: 10px;
+  background: rgb(255 255 255 / 14%);
+}
+
+/* 数据条 */
+.metrics {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 0;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.metrics__item {
+  padding: 22px 0 26px;
+}
+
+.metrics__item + .metrics__item {
+  padding-left: 28px;
+  border-left: 1px solid rgb(255 255 255 / 8%);
+}
+
+.metrics dt {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metrics dd {
+  margin: 6px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------- 市场结构 */
+.structure {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 24px;
+}
+
+.structure__chart {
+  padding: 26px 28px;
+}
+
+.structure__side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: start;
 }
 
 .entry {
   position: relative;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 18px;
   background: #fff;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 .entry:hover {
-  transform: translateY(-3px);
+  border-color: #cbd5e1;
   box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .entry__name {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
 }
 
 .entry__desc {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 
 .entry__arrow {
   position: absolute;
-  top: 20px;
-  right: 22px;
-  color: var(--color-primary);
+  top: 18px;
+  right: 16px;
+  font-size: 13px;
+  color: var(--muted-2);
+  transition: transform 0.18s ease;
 }
 
+.entry:hover .entry__arrow {
+  color: var(--brand);
+  transform: translateX(2px);
+}
+
+/* ---------------------------------------------------------------- 分布 */
+.dist-card {
+  padding: 32px 32px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------------------------------------------------------------- 榜单 */
 .boards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
 .board {
   display: flex;
   flex-direction: column;
-  padding: 22px 24px;
+  padding: 24px 24px 20px;
   background: #fff;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  transition: box-shadow 0.2s ease;
+}
+
+.board:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .board__head {
-  margin-bottom: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .board__title {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .board__desc {
   margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .board__list {
   flex: 1;
-  margin: 0;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.board__row {
+.row {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding: 9px 0;
-  border-bottom: 1px dashed var(--color-border);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-soft);
 }
 
-.board__rank {
+.row:last-child {
+  border-bottom: none;
+}
+
+.row__rank {
   flex: none;
-  width: 20px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: #a0aec0;
+  width: 22px;
+  height: 22px;
+  font-family: var(--font-num);
+  font-size: 11px;
+  line-height: 22px;
+  color: var(--muted-2);
   text-align: center;
+  background: var(--bg-soft);
+  border-radius: 6px;
 }
 
-.board__rank--top {
+.row__rank--top {
   font-weight: 700;
-  color: var(--color-primary);
+  color: #fff;
+  background: linear-gradient(135deg, #334155, #0f172a);
 }
 
-.board__fund {
-  display: flex;
+.row__fund {
   flex: 1;
-  gap: 8px;
-  align-items: baseline;
   min-width: 0;
 }
 
-.board__name {
+.row__name {
+  display: block;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 13.5px;
+  color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.board__name:hover {
-  color: var(--color-primary);
+.row__name:hover {
+  color: var(--brand);
 }
 
-.board__code {
-  flex: none;
-  font-size: 12px;
-  color: #a0aec0;
+.row__code {
+  font-size: 11px;
+  color: var(--muted-2);
 }
 
-.board__value {
+.row__value {
   flex: none;
   font-size: 14px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.board__value--up {
-  color: #c53030;
-}
-
-.board__value--down {
-  color: #2f855a;
 }
 
 .board__more {
-  margin-top: 14px;
+  margin-top: 16px;
   font-size: 13px;
-  color: var(--color-primary);
+  color: var(--brand);
 }
 
-.section__more {
-  font-size: 14px;
-  color: var(--color-primary);
+.board__more:hover {
+  color: var(--brand-dark);
 }
 
+/* ---------------------------------------------------------------- 其他 */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
 }
 
+.disclaimer-wrap {
+  padding: 40px 0 56px;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line-soft);
+}
+
 .disclaimer {
-  font-size: 13px;
+  max-width: 860px;
+  margin: 0 auto;
+  font-size: 12.5px;
   line-height: 2;
-  color: #a0aec0;
+  color: var(--muted-2);
   text-align: center;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+@media (max-width: 960px) {
+  .hero__inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding: 56px 24px 48px;
+  }
+
+  .structure {
+    grid-template-columns: 1fr;
+  }
+
+  .boards {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metrics__item:nth-child(3) {
+    padding-left: 0;
+    border-top: 1px solid rgb(255 255 255 / 8%);
+    border-left: none;
+  }
+
+  .metrics__item:nth-child(4) {
+    border-top: 1px solid rgb(255 255 255 / 8%);
+  }
+}
+
+@media (max-width: 560px) {
+  .structure__side {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics dd {
+    font-size: 20px;
+  }
 }
 </style>

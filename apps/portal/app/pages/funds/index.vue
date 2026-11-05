@@ -20,7 +20,7 @@ const state = reactive<FilterState>({
   risk_level: (route.query.risk_level as RiskLevel) || undefined,
   period: ((route.query.period as FundPeriod) || '1y') as FundPeriod,
   sort_by: ((route.query.sort_by as FundSortBy) || 'return') as FundSortBy,
-  sort_order: 'desc' as 'asc' | 'desc',
+  sort_order: 'desc',
   page: Number(route.query.page) || 1,
   page_size: 20,
 })
@@ -29,7 +29,6 @@ const params = computed(() => ({ ...state }))
 const { data: filters } = await useFundFilters()
 const { data, pending } = await useFundList(params)
 
-// 条件变化时同步到 URL（可分享、可收藏）
 watch(params, (val) => {
   router.push({
     query: {
@@ -47,6 +46,13 @@ const totalPages = computed(() => {
   return Math.max(1, Math.ceil(data.value.total / data.value.page_size))
 })
 
+const quickTypes = computed(() => (filters.value?.types ?? []).filter((t) => t.value !== 'other'))
+
+function pickType(type: string) {
+  state.type = state.type === type ? undefined : (type as FundType)
+  state.page = 1
+}
+
 function resetFilters() {
   state.keyword = ''
   state.type = undefined
@@ -60,15 +66,15 @@ function goPage(page: number) {
   state.page = Math.min(Math.max(1, page), totalPages.value)
 }
 
-/** 收益类数值：正红负绿（中国市场习惯），保留两位 */
 function signedPct(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
+/** 幅度类指标（回撤）：取绝对值、不带正负号 */
 function plainPct(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  return `${value.toFixed(2)}%`
+  return `${Math.abs(value).toFixed(2)}%`
 }
 
 function num(value: number | null | undefined, digits = 2): string {
@@ -83,8 +89,8 @@ function money(value: number | null | undefined): string {
 }
 
 function trendClass(value: number | null | undefined): string {
-  if (value === null || value === undefined) return 'num'
-  return value > 0 ? 'num num--up' : value < 0 ? 'num num--down' : 'num'
+  if (value === null || value === undefined) return ''
+  return value > 0 ? 'up' : value < 0 ? 'down' : ''
 }
 
 useSeoMeta({
@@ -96,93 +102,141 @@ useSeoMeta({
 <template>
   <div class="page">
     <div class="container">
+      <!-- 页头 -->
       <header class="page__head">
-        <h1 class="page__title">基金筛选</h1>
-        <p class="page__desc">
-          共 <strong>{{ data?.total?.toLocaleString() ?? 0 }}</strong> 只基金符合条件 · 区间：{{
-            FUND_PERIOD_MAP[state.period]
-          }}
-        </p>
+        <div>
+          <p class="section__eyebrow">Screener</p>
+          <h1 class="page__title">基金筛选</h1>
+          <p class="page__desc">
+            共 <strong class="num">{{ data?.total?.toLocaleString() ?? 0 }}</strong> 只基金 ·
+            {{ FUND_PERIOD_MAP[state.period] }}收益 ·
+            <span v-if="state.type">{{ FUND_TYPE_MAP[state.type] }} · </span>按{{
+              filters?.sort_fields?.find((s) => s.value === state.sort_by)?.label ?? '收益'
+            }}排序
+          </p>
+        </div>
       </header>
+
+      <!-- 快捷类型 -->
+      <div class="chips">
+        <button
+          v-for="item in quickTypes"
+          :key="item.value"
+          type="button"
+          class="chip"
+          :class="{ 'chip--active': state.type === item.value }"
+          @click="pickType(String(item.value))"
+        >
+          {{ item.label }}
+        </button>
+      </div>
 
       <!-- 筛选区 -->
       <section class="filters">
-        <input
-          v-model="state.keyword"
-          class="filters__input"
-          type="search"
-          placeholder="输入基金代码或名称"
-          @keyup.enter="state.page = 1"
-        />
+        <div class="filters__search">
+          <svg class="filters__icon" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <path
+              d="M13.5 13.5 18 18"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            />
+          </svg>
+          <input
+            v-model="state.keyword"
+            type="search"
+            placeholder="搜索基金代码或名称"
+            @keyup.enter="state.page = 1"
+          />
+        </div>
 
-        <select v-model="state.type" class="filters__select" @change="state.page = 1">
-          <option :value="undefined">全部类型</option>
-          <option v-for="opt in filters?.types ?? []" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </option>
-        </select>
+        <div class="filters__group">
+          <label class="field">
+            <span class="field__label">风险</span>
+            <select v-model="state.risk_level" class="field__select" @change="state.page = 1">
+              <option :value="undefined">全部</option>
+              <option v-for="opt in filters?.risk_levels ?? []" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </label>
 
-        <select v-model="state.risk_level" class="filters__select" @change="state.page = 1">
-          <option :value="undefined">全部风险</option>
-          <option v-for="opt in filters?.risk_levels ?? []" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </option>
-        </select>
+          <label class="field">
+            <span class="field__label">区间</span>
+            <select v-model="state.period" class="field__select" @change="state.page = 1">
+              <option v-for="opt in filters?.periods ?? []" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </label>
 
-        <select v-model="state.period" class="filters__select" @change="state.page = 1">
-          <option v-for="opt in filters?.periods ?? []" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </option>
-        </select>
+          <label class="field">
+            <span class="field__label">排序</span>
+            <select v-model="state.sort_by" class="field__select" @change="state.page = 1">
+              <option v-for="opt in filters?.sort_fields ?? []" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </label>
 
-        <select v-model="state.sort_by" class="filters__select" @change="state.page = 1">
-          <option v-for="opt in filters?.sort_fields ?? []" :key="opt.value" :value="opt.value">
-            按{{ opt.label }}排序
-          </option>
-        </select>
-
-        <button class="filters__reset" type="button" @click="resetFilters">重置</button>
+          <button type="button" class="filters__reset" @click="resetFilters">重置</button>
+        </div>
       </section>
 
       <!-- 结果 -->
-      <div v-if="pending" class="state">加载中…</div>
+      <div v-if="pending" class="skeleton">
+        <div v-for="i in 8" :key="i" class="skeleton__row" />
+      </div>
 
-      <div v-else-if="!data?.items?.length" class="state">
-        没有符合条件的基金，试试放宽筛选条件。
+      <div v-else-if="!data?.items?.length" class="empty">
+        <div class="empty__title">没有符合条件的基金</div>
+        <p class="empty__desc">试试放宽筛选条件，或清空关键词后重新搜索。</p>
+        <button type="button" class="btn" @click="resetFilters">重置筛选</button>
       </div>
 
       <div v-else class="table-wrap">
-        <table class="fund-table">
+        <table class="data-table fund-table">
           <thead>
             <tr>
               <th class="col-rank">#</th>
               <th class="col-name">基金</th>
               <th>类型</th>
-              <th class="text-right">单位净值</th>
-              <th class="text-right">{{ FUND_PERIOD_MAP[state.period] }}收益</th>
-              <th class="text-right">最大回撤</th>
-              <th class="text-right">夏普</th>
-              <th class="text-right">规模</th>
+              <th class="ta-r">单位净值</th>
+              <th class="ta-r">{{ FUND_PERIOD_MAP[state.period] }}收益</th>
+              <th class="ta-r">最大回撤</th>
+              <th class="ta-r">夏普</th>
+              <th class="ta-r">规模</th>
               <th class="col-company">公司 / 经理</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(fund, index) in data.items" :key="fund.id">
-              <td class="col-rank">{{ (state.page - 1) * state.page_size + index + 1 }}</td>
+              <td class="col-rank num">{{ (state.page - 1) * state.page_size + index + 1 }}</td>
+
               <td class="col-name">
-                <NuxtLink :to="`/funds/${fund.code}`" class="fund-name">{{ fund.name }}</NuxtLink>
-                <span class="fund-code">{{ fund.code }}</span>
+                <NuxtLink :to="`/funds/${fund.code}`" class="fund">
+                  <span class="fund__name">{{ fund.name }}</span>
+                  <span class="fund__code num">{{ fund.code }}</span>
+                </NuxtLink>
               </td>
+
               <td>
-                <span class="tag">{{ FUND_TYPE_MAP[fund.type] }}</span>
+                <span class="pill">{{ FUND_TYPE_MAP[fund.type] }}</span>
               </td>
-              <td class="text-right num">{{ num(fund.latest_nav, 4) }}</td>
-              <td class="text-right" :class="trendClass(fund.return_rate)">
-                {{ signedPct(fund.return_rate) }}
+
+              <td class="ta-r num">{{ num(fund.latest_nav, 4) }}</td>
+
+              <td class="ta-r num" :class="trendClass(fund.return_rate)">
+                <span class="ret" :class="trendClass(fund.return_rate)">
+                  {{ signedPct(fund.return_rate) }}
+                </span>
               </td>
-              <td class="text-right num num--muted">{{ plainPct(fund.max_drawdown) }}</td>
-              <td class="text-right num">{{ num(fund.sharpe) }}</td>
-              <td class="text-right num num--muted">{{ money(fund.scale) }}</td>
+
+              <td class="ta-r num muted">{{ plainPct(fund.max_drawdown) }}</td>
+              <td class="ta-r num">{{ num(fund.sharpe) }}</td>
+              <td class="ta-r num muted">{{ money(fund.scale) }}</td>
+
               <td class="col-company">
                 <div class="company">{{ fund.company_name ?? '—' }}</div>
                 <div class="manager">{{ fund.manager_name ?? '—' }}</div>
@@ -194,17 +248,38 @@ useSeoMeta({
 
       <!-- 分页 -->
       <nav v-if="totalPages > 1" class="pager">
-        <button type="button" :disabled="state.page <= 1" @click="goPage(state.page - 1)">
+        <button type="button" class="pager__btn" :disabled="state.page <= 1" @click="goPage(1)">
+          首页
+        </button>
+        <button
+          type="button"
+          class="pager__btn"
+          :disabled="state.page <= 1"
+          @click="goPage(state.page - 1)"
+        >
           上一页
         </button>
-        <span class="pager__info">{{ state.page }} / {{ totalPages }}</span>
-        <button type="button" :disabled="state.page >= totalPages" @click="goPage(state.page + 1)">
+        <span class="pager__info num">{{ state.page }} / {{ totalPages }}</span>
+        <button
+          type="button"
+          class="pager__btn"
+          :disabled="state.page >= totalPages"
+          @click="goPage(state.page + 1)"
+        >
           下一页
+        </button>
+        <button
+          type="button"
+          class="pager__btn"
+          :disabled="state.page >= totalPages"
+          @click="goPage(totalPages)"
+        >
+          末页
         </button>
       </nav>
 
       <p class="disclaimer">
-        数据来源于公开渠道，仅供参考，不构成投资建议。基金过往业绩不代表未来表现。
+        数据来源于公开渠道，可能存在延迟或误差，仅供参考，不构成投资建议。基金过往业绩不代表未来表现。
       </p>
     </div>
   </div>
@@ -212,7 +287,7 @@ useSeoMeta({
 
 <style scoped>
 .page {
-  padding: 40px 0 24px;
+  padding: 44px 0 24px;
 }
 
 .page__head {
@@ -220,205 +295,341 @@ useSeoMeta({
 }
 
 .page__title {
-  margin: 0;
-  font-size: 30px;
+  margin: 6px 0 0;
+  font-size: 32px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .page__desc {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: var(--color-text-muted);
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
 }
 
+.page__desc strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+/* ---------------- 快捷标签 ---------------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 18px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.chip {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.chip:hover {
+  border-color: #cbd5e1;
+  background: var(--bg-soft);
+}
+
+.chip--active {
+  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* ---------------- 筛选栏 ---------------- */
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0;
 }
 
-.filters__input,
-.filters__select {
+.filters__search {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 360px;
+}
+
+.filters__icon {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted-2);
+  transform: translateY(-50%);
+}
+
+.filters__search input {
+  width: 100%;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 14px 0 36px;
   font-size: 14px;
-  color: var(--color-text);
+  color: var(--ink);
   background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.filters__input {
-  flex: 1 1 220px;
-  min-width: 180px;
+.filters__search input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 12%);
 }
 
-.filters__select {
-  min-width: 120px;
+.filters__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.field {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.field__label {
+  font-size: 12px;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
+.field__select {
+  height: 40px;
+  padding: 0 28px 0 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: none;
+}
+
+.field__select:focus {
+  border-color: #93c5fd;
 }
 
 .filters__reset {
   height: 40px;
-  padding: 0 16px;
-  font-size: 14px;
-  color: var(--color-text-muted);
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--muted);
   cursor: pointer;
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
 }
 
 .filters__reset:hover {
-  background: var(--color-bg-soft);
+  color: var(--ink);
+  background: var(--bg-soft);
 }
 
-.state {
-  padding: 48px;
-  color: var(--color-text-muted);
-  text-align: center;
-  background: var(--color-bg-soft);
-  border-radius: var(--radius);
-}
-
+/* ---------------- 表格 ---------------- */
 .table-wrap {
   overflow-x: auto;
   background: #fff;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
 .fund-table {
-  width: 100%;
-  min-width: 900px;
-  font-size: 14px;
-  border-collapse: collapse;
-}
-
-.fund-table th,
-.fund-table td {
-  padding: 12px 14px;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.fund-table th {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  background: var(--color-bg-soft);
-  white-space: nowrap;
-}
-
-.fund-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.fund-table tbody tr:hover {
-  background: #fafcff;
-}
-
-.text-right {
-  text-align: right;
+  min-width: 940px;
 }
 
 .col-rank {
-  width: 48px;
-  color: #a0aec0;
+  width: 52px;
+  color: var(--muted-2);
 }
 
 .col-name {
-  min-width: 220px;
+  min-width: 230px;
 }
 
 .col-company {
-  min-width: 150px;
-  font-size: 13px;
+  min-width: 160px;
 }
 
-.fund-name {
+.ta-r {
+  text-align: right;
+}
+
+.fund {
   display: block;
+}
+
+.fund__name {
+  display: block;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--color-text);
+  color: var(--ink);
 }
 
-.fund-name:hover {
-  color: var(--color-primary);
+.fund__name:hover {
+  color: var(--brand);
 }
 
-.fund-code {
-  font-size: 12px;
-  color: #a0aec0;
+.fund__code {
+  font-size: 11.5px;
+  color: var(--muted-2);
 }
 
-.tag {
+.ret {
   display: inline-block;
+  min-width: 68px;
   padding: 2px 8px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  background: var(--color-bg-soft);
-  border-radius: 4px;
-}
-
-.num {
-  font-variant-numeric: tabular-nums;
-}
-
-/* 中国市场习惯：涨红跌绿 */
-.num--up {
   font-weight: 600;
-  color: #c53030;
+  border-radius: 6px;
 }
 
-.num--down {
-  font-weight: 600;
-  color: #2f855a;
+.ret.up {
+  color: var(--up);
+  background: var(--up-soft);
 }
 
-.num--muted {
-  color: var(--color-text-muted);
+.ret.down {
+  color: var(--down);
+  background: var(--down-soft);
+}
+
+.muted {
+  color: var(--muted);
 }
 
 .company {
-  color: var(--color-text);
+  font-size: 13px;
+  color: var(--ink-2);
 }
 
 .manager {
-  color: #a0aec0;
+  font-size: 12px;
+  color: var(--muted-2);
 }
 
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+/* ---------------- 骨架屏 ---------------- */
+.skeleton {
+  padding: 8px 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.skeleton__row {
+  height: 44px;
+  margin: 8px 16px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-size: 400% 100%;
+  border-radius: 8px;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------------- 空态 ---------------- */
+.empty {
+  padding: 72px 24px;
+  text-align: center;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.empty__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty__desc {
+  margin: 8px 0 20px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+/* ---------------- 分页 ---------------- */
 .pager {
   display: flex;
-  gap: 16px;
+  gap: 8px;
   align-items: center;
   justify-content: center;
   margin-top: 24px;
 }
 
-.pager button {
-  padding: 8px 18px;
-  font-size: 14px;
-  color: var(--color-primary);
+.pager__btn {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--ink-2);
   cursor: pointer;
   background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 
-.pager button:disabled {
-  color: #cbd5e0;
+.pager__btn:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background: var(--bg-soft);
+}
+
+.pager__btn:disabled {
+  color: #cbd5e1;
   cursor: not-allowed;
 }
 
 .pager__info {
-  font-size: 14px;
-  color: var(--color-text-muted);
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .disclaimer {
-  margin-top: 28px;
+  margin-top: 32px;
   font-size: 12px;
-  color: #a0aec0;
+  line-height: 1.9;
+  color: var(--muted-2);
   text-align: center;
+}
+
+@media (max-width: 768px) {
+  .page__title {
+    font-size: 26px;
+  }
+
+  .filters__search {
+    max-width: none;
+  }
 }
 </style>

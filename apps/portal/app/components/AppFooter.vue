@@ -1,20 +1,30 @@
 <template>
   <footer class="footer">
     <div class="container footer__inner">
-      <div>
-        <div class="footer__brand">Study 门户</div>
+      <div class="footer__brand-col">
+        <div class="footer__brand">
+          <span class="footer__mark">S</span>
+          <span>Study 基金</span>
+        </div>
         <p class="footer__desc">
-          基于 Nuxt 构建的门户站点，内容由后台管理系统统一维护，服务端渲染、SEO 友好。
+          全市场公募基金数据筛选与分析。所有指标基于公开净值计算，排名可追溯、口径可复算。
         </p>
       </div>
 
       <div class="footer__links">
         <div class="footer__col">
-          <div class="footer__title">站点</div>
-          <NuxtLink to="/">首页</NuxtLink>
-          <NuxtLink to="/articles">资讯</NuxtLink>
+          <div class="footer__title">产品</div>
+          <NuxtLink to="/funds">基金筛选</NuxtLink>
+          <NuxtLink :to="{ path: '/funds', query: { type: 'index' } }">指数基金</NuxtLink>
+          <NuxtLink :to="{ path: '/funds', query: { type: 'bond' } }">债券基金</NuxtLink>
+        </div>
+
+        <div class="footer__col">
+          <div class="footer__title">内容</div>
+          <NuxtLink to="/articles">研报</NuxtLink>
           <NuxtLink to="/about">关于</NuxtLink>
         </div>
+
         <div class="footer__col">
           <div class="footer__title">资源</div>
           <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer">接口文档</a>
@@ -23,73 +33,117 @@
       </div>
     </div>
 
-    <div class="footer__bottom">
-      <div class="container">© {{ new Date().getFullYear() }} Study. All rights reserved.</div>
+    <div class="footer__legal">
+      <div class="container footer__legal-inner">
+        <span>© {{ new Date().getFullYear() }} Study. All rights reserved.</span>
+        <span class="footer__note">数据仅供参考，不构成投资建议</span>
+      </div>
     </div>
   </footer>
 </template>
 
 <style scoped>
 .footer {
-  margin-top: 64px;
-  color: #cbd5e0;
-  background: #1a202c;
+  color: #94a3b8;
+  background: var(--bg-deep);
 }
 
 .footer__inner {
   display: flex;
   flex-wrap: wrap;
-  gap: 40px;
+  gap: 48px;
   justify-content: space-between;
-  padding: 48px 20px 32px;
+  padding: 56px 24px 40px;
+}
+
+.footer__brand-col {
+  max-width: 340px;
 }
 
 .footer__brand {
-  margin-bottom: 10px;
-  font-size: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.footer__mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
   font-weight: 700;
   color: #fff;
+  background: var(--brand);
+  border-radius: 8px;
 }
 
 .footer__desc {
-  max-width: 380px;
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #a0aec0;
+  margin: 14px 0 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #64748b;
 }
 
 .footer__links {
   display: flex;
-  gap: 64px;
+  flex-wrap: wrap;
+  gap: 56px;
 }
 
 .footer__col {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .footer__title {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: #e2e8f0;
+  letter-spacing: 0.04em;
 }
 
 .footer__col a {
-  color: #a0aec0;
+  color: #64748b;
   transition: color 0.15s ease;
 }
 
 .footer__col a:hover {
-  color: #fff;
+  color: #e2e8f0;
 }
 
-.footer__bottom {
-  padding: 16px 0;
-  font-size: 13px;
-  color: #718096;
-  border-top: 1px solid #2d3748;
+.footer__legal {
+  border-top: 1px solid rgb(255 255 255 / 6%);
+}
+
+.footer__legal-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 18px 24px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.footer__note {
+  color: #475569;
+}
+
+@media (max-width: 720px) {
+  .footer__inner {
+    gap: 32px;
+    padding: 40px 18px 32px;
+  }
+
+  .footer__links {
+    gap: 36px;
+  }
 }
 </style>

@@ -214,3 +214,30 @@ export interface FilterOptions {
   periods: FilterOption[]
   sort_fields: FilterOption[]
 }
+
+// ---------------------------------------------------------------- 统计
+export interface TypeStat {
+  type: FundType
+  label: string
+  count: number
+  /** 该类型区间平均收益（%） */
+  avg_return: number | null
+}
+
+export interface OverviewStats {
+  total_funds: number
+  total_companies: number
+  latest_nav_date: string | null
+  type_distribution: TypeStat[]
+}
+
+export interface DistributionBucket {
+  label: string
+  count: number
+}
+
+export interface ReturnDistribution {
+  period: string
+  total: number
+  buckets: DistributionBucket[]
+}

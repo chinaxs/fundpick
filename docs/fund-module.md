@@ -31,9 +31,19 @@ uv run python -m scripts.sync_funds --mode quick
 uv run python -m scripts.sync_funds --mode risk --limit 600
 uv run python -m scripts.sync_funds --mode risk          # 全量约 2 小时
 
-# 净值序列（详情页曲线用）——按需补齐
+# 规模 / 成立日期（批量接口，约 7000 只）
+uv run python -m scripts.sync_funds --mode scale
+
+# 单只档案（全称、规模、成立日期）——按收益降序补头部，约 0.36 秒/只
+uv run python -m scripts.sync_funds --mode detail --limit 500
+uv run python -m scripts.sync_funds --mode detail          # 全量约 2 小时
+
+# 净值序列（详情页曲线用）——通常无需手动跑
 uv run python -m scripts.sync_funds --mode navs --limit 100
 ```
+
+**净值按需回填**：访问某个基金详情页时，如果本地没有净值序列，接口会实时拉取一次并入库
+（`FundService.ensure_navs`）。全市场预拉 1000 万行不划算，按访问触发更经济。
 
 采集链路：
 
@@ -88,8 +98,8 @@ AkShareProvider.risk_metrics()    → fund_metrics（1y/3y/5y 的回撤/波动/�
 
 | 限制 | 影响 | 计划 |
 | --- | --- | --- |
-| 风险指标只补了 600 只 | 大部分基金按夏普/回撤排序时为 NULL | 后台跑 `--mode risk` 全量（约 2 小时） |
-| 规模、成立日期为空 | 详情页这些字段显示"—" | 需单只详情接口（`fund_individual_basic_info_xq`）逐只补，或换数据源 |
+| 风险指标覆盖率 | 全量采集中；未覆盖的基金按夏普/回撤排序时为 NULL | `--mode risk` 支持断点续跑 |
+| 规模/成立日期 | 批量接口覆盖约 7000 只，其余靠 `--mode detail` 逐只补 | 全量约 2 小时 |
 | 板块标签未实现 | 无法按"医药/科技"筛基金 | 第二期：季报持仓 → 行业映射 → `fund_sectors` |
 | 无盘中估值 / 场内实时 | 用户看到的只有 T-1 净值 | 第三期：ETF 实时行情 + 估值接口（需注明"估算，仅供参考"） |
 | 无自选与组合 | 用户不能收藏、不能算持仓收益 | 第三期：需用户体系改造（当前用户表未区分前台/后台） |

@@ -5,6 +5,8 @@ import type { MaybeRef } from 'vue'
 import type {
   ApiResponse,
   FilterOptions,
+  OverviewStats,
+  ReturnDistribution,
   FundDetail,
   FundListItem,
   FundMetric,
@@ -41,6 +43,38 @@ export function useFundFilters() {
     },
     { server: true },
   )
+}
+
+/** 市场概览（总数、公司数、类型分布） */
+export function useOverviewStats() {
+  return useAsyncData<OverviewStats>(
+    'fund-overview',
+    async () => {
+      const res = await $fetch<ApiResponse<OverviewStats>>('/portal/stats/overview', {
+        baseURL: useApiBase(),
+      })
+      return (
+        res.data ?? {
+          total_funds: 0,
+          total_companies: 0,
+          latest_nav_date: null,
+          type_distribution: [],
+        }
+      )
+    },
+    { server: true },
+  )
+}
+
+/** 区间收益分布 */
+export function useReturnDistribution(period = '1y') {
+  return useAsyncData<ReturnDistribution>(`return-dist-${period}`, async () => {
+    const res = await $fetch<ApiResponse<ReturnDistribution>>('/portal/stats/return-distribution', {
+      baseURL: useApiBase(),
+      query: { period },
+    })
+    return res.data ?? { period, total: 0, buckets: [] }
+  })
 }
 
 /** 单只基金详情 */
