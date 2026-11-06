@@ -64,6 +64,8 @@ useSeoMeta({
         <NuxtLink to="/funds" class="link-more">去筛选基金 →</NuxtLink>
       </header>
 
+      <MemberNav />
+
       <!-- 未登录 -->
       <section v-if="!isLoggedIn" class="empty">
         <div class="empty__icon">☆</div>

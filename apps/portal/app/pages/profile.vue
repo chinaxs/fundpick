@@ -155,6 +155,7 @@ useSeoMeta({
           <nav class="card side__nav">
             <NuxtLink to="/dashboard" class="side__link">▤ 我的工作台</NuxtLink>
             <NuxtLink to="/favorites" class="side__link">☆ 我的关注</NuxtLink>
+            <NuxtLink to="/positions" class="side__link">◈ 模拟持仓</NuxtLink>
             <NuxtLink to="/funds" class="side__link">⌕ 基金筛选</NuxtLink>
           </nav>
         </aside>

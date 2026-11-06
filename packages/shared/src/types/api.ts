@@ -392,8 +392,12 @@ export interface PositionItem {
   sector: string | null
   /** 买入金额（成本，元） */
   amount: number
-  /** 买入时单位净值 */
+  /** 买入日期对应的单位净值（系统自动取，无需用户手填） */
   cost_nav: number
+  /** 该净值对应的交易日 */
+  cost_nav_date: string | null
+  /** history=历史净值；latest=回退到最新净值 */
+  nav_source: 'history' | 'latest'
   bought_at: string
   note: string | null
   /** 份额 = 金额 / 买入净值，由服务端计算 */
@@ -415,20 +419,23 @@ export interface PositionSummary {
   valued_count: number
 }
 
-/** 新增模拟持仓：只录金额，份额由服务端折算 */
+/** 新增模拟持仓：只录金额与日期，净值/份额由服务端算 */
 export interface PositionCreatePayload {
   code: string
   amount: number
-  cost_nav: number
   bought_at?: string
   note?: string | null
 }
 
 export interface PositionUpdatePayload {
   amount?: number
-  cost_nav?: number
   bought_at?: string
   note?: string | null
+}
+
+export interface PositionListData {
+  items: PositionItem[]
+  summary: PositionSummary
 }
 
 /** 工作台聚合数据：一次请求带齐统计、分布与榜单 */
@@ -441,9 +448,6 @@ export interface DashboardData {
   return_buckets: DashboardDistributionItem[]
   top_funds: DashboardFundItem[]
   recent_funds: DashboardFundItem[]
-  /** 完整收藏列表 */
-  favorites: DashboardFundItem[]
-  /** 模拟持仓明细 */
-  positions: PositionItem[]
+  /** 模拟持仓概览（明细在 /me/positions） */
   position_summary: PositionSummary
 }

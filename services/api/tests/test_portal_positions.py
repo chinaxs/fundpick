@@ -1,5 +1,6 @@
-"""模拟持仓：金额录入、份额折算、盈亏计算与会员隔离。"""
+"""模拟持仓：金额录入、按买入日期自动取净值、份额折算与会员隔离。"""
 
+from datetime import date, timedelta
 from uuid import uuid4
 
 import pytest
@@ -9,6 +10,7 @@ from sqlalchemy import delete, select
 from app.db.session import async_session_factory
 from app.models.fund import Fund
 from app.models.fund_favorite import FundFavorite
+from app.models.fund_nav import FundNav
 from app.models.fund_position import FundPosition
 from app.models.user import User
 
@@ -25,12 +27,7 @@ async def _register(client: AsyncClient, name: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {resp.json()['data']['access_token']}"}
 
 
-@pytest.fixture
-async def member(client: AsyncClient):
-    name = f"tp_{uuid4().hex[:10]}"
-    headers = await _register(client, name)
-    yield {"username": name, "headers": headers}
-
+async def _cleanup(name: str) -> None:
     async with async_session_factory() as session:
         user = (
             await session.execute(select(User).where(User.username == name))
@@ -43,19 +40,35 @@ async def member(client: AsyncClient):
 
 
 @pytest.fixture
+async def member(client: AsyncClient):
+    name = f"tp_{uuid4().hex[:10]}"
+    headers = await _register(client, name)
+    yield {"username": name, "headers": headers}
+    await _cleanup(name)
+
+
+@pytest.fixture
 async def other_member(client: AsyncClient):
     name = f"tp_{uuid4().hex[:10]}"
     headers = await _register(client, name)
     yield {"username": name, "headers": headers}
+    await _cleanup(name)
 
+
+async def _expected_nav(code: str, bought_at: date) -> tuple[float, date]:
+    """按服务端同一口径查：买入日期当天或之前最近一个交易日净值。"""
     async with async_session_factory() as session:
-        user = (
-            await session.execute(select(User).where(User.username == name))
-        ).scalar_one_or_none()
-        if user:
-            await session.execute(delete(FundPosition).where(FundPosition.user_id == user.id))
-            await session.execute(delete(User).where(User.id == user.id))
-            await session.commit()
+        row = (
+            await session.execute(
+                select(FundNav.unit_nav, FundNav.nav_date)
+                .join(Fund, Fund.id == FundNav.fund_id)
+                .where(Fund.code == code, FundNav.nav_date <= bought_at)
+                .order_by(FundNav.nav_date.desc())
+                .limit(1)
+            )
+        ).first()
+        assert row is not None, "测试基金应有历史净值"
+        return float(row[0]), row[1]
 
 
 async def _latest_nav() -> float:
@@ -66,69 +79,162 @@ async def _latest_nav() -> float:
         return float(value) if value is not None else 1.0
 
 
-async def test_position_crud_and_shares(client: AsyncClient, member: dict) -> None:
-    """只录金额：份额 = 金额 / 买入净值，市值/盈亏按最新净值算。"""
-    nav = await _latest_nav()
+async def test_create_uses_nav_of_buy_date(client: AsyncClient, member: dict) -> None:
+    """用户只填金额和日期，净值自动取、份额自动算。"""
+    bought_at = date.today() - timedelta(days=30)
+    nav, nav_date = await _expected_nav("021180", bought_at)
+
     resp = await client.post(
         BASE,
-        json={"code": "021180", "amount": 10000, "cost_nav": 1.25, "note": "模拟建仓"},
+        json={
+            "code": "021180",
+            "amount": 10000,
+            "bought_at": bought_at.isoformat(),
+            "note": "模拟建仓",
+        },
         headers=member["headers"],
     )
     assert resp.status_code == 200, resp.text
     item = resp.json()["data"]
-    assert item["amount"] == 10000
-    assert item["shares"] == 8000.0, "10000 / 1.25 = 8000 份"
-    assert item["latest_nav"] == round(nav, 4)
-    expected_value = round(8000 * nav, 2)
-    assert item["market_value"] == expected_value
-    assert item["profit"] == round(expected_value - 10000, 2)
-    assert item["profit_rate"] == round((expected_value - 10000) / 10000 * 100, 2)
+    assert item["cost_nav"] == round(nav, 4)
+    assert item["cost_nav_date"] == nav_date.isoformat()
+    assert item["nav_source"] == "history"
+    assert item["shares"] == round(10000 / nav, 2)
 
+    latest = await _latest_nav()
+    assert item["market_value"] == round((10000 / nav) * latest, 2)
+    assert item["profit"] == round(item["market_value"] - 10000, 2)
+
+
+async def test_create_defaults_to_today(client: AsyncClient, member: dict) -> None:
+    """不传日期时用今天，净值取最近一个交易日。"""
+    nav, nav_date = await _expected_nav("021180", date.today())
+    resp = await client.post(
+        BASE,
+        json={"code": "021180", "amount": 5000},
+        headers=member["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    item = resp.json()["data"]
+    assert item["bought_at"] == date.today().isoformat()
+    assert item["cost_nav"] == round(nav, 4)
+    assert item["cost_nav_date"] == nav_date.isoformat()
+
+
+async def test_hand_typed_nav_is_ignored(client: AsyncClient, member: dict) -> None:
+    """即使客户端传了 cost_nav，也以服务端查到的净值为准。"""
+    nav, _ = await _expected_nav("021180", date.today())
+    resp = await client.post(
+        BASE,
+        json={"code": "021180", "amount": 10000, "cost_nav": 1.0},
+        headers=member["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["cost_nav"] == round(nav, 4)
+
+
+async def test_fallback_to_latest_nav_when_no_history(client: AsyncClient, member: dict) -> None:
+    """没有历史净值序列的基金：回退主表最新净值，并明确标注来源。"""
+    async with async_session_factory() as session:
+        row = (
+            await session.execute(
+                select(Fund.code, Fund.latest_nav).where(
+                    Fund.code == "000001", Fund.latest_nav.is_not(None)
+                )
+            )
+        ).first()
+    assert row is not None, "000001 应有最新净值"
+
+    resp = await client.post(
+        BASE,
+        json={"code": "000001", "amount": 8000},
+        headers=member["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    item = resp.json()["data"]
+    assert item["nav_source"] == "latest"
+    assert item["cost_nav"] == round(float(row[1]), 4)
+    assert item["shares"] == round(8000 / float(row[1]), 2)
+
+
+async def test_edit_amount_and_date(client: AsyncClient, member: dict) -> None:
+    """改金额重算份额，改日期自动换成对应日期的净值。"""
+    created = await client.post(
+        BASE,
+        json={"code": "021180", "amount": 10000},
+        headers=member["headers"],
+    )
+    item = created.json()["data"]
     position_id = item["id"]
 
-    # 编辑金额后份额自动重算
-    edited = await client.patch(
+    edited_amount = await client.patch(
         f"{BASE}/{position_id}",
         json={"amount": 20000},
         headers=member["headers"],
     )
-    assert edited.status_code == 200, edited.text
-    assert edited.json()["data"]["shares"] == 16000.0
-    assert edited.json()["data"]["cost_nav"] == 1.25, "未提供的字段保持原值"
+    assert edited_amount.status_code == 200, edited_amount.text
+    assert edited_amount.json()["data"]["shares"] == round(
+        20000 / item["cost_nav"], 2
+    )
 
-    listed = await client.get(BASE, headers=member["headers"])
-    assert len(listed.json()["data"]) == 1
+    older = date.today() - timedelta(days=120)
+    nav, nav_date = await _expected_nav("021180", older)
+    edited_date = await client.patch(
+        f"{BASE}/{position_id}",
+        json={"bought_at": older.isoformat()},
+        headers=member["headers"],
+    )
+    assert edited_date.status_code == 200, edited_date.text
+    result = edited_date.json()["data"]
+    assert result["cost_nav"] == round(nav, 4)
+    assert result["cost_nav_date"] == nav_date.isoformat()
+
+
+async def test_list_returns_items_and_summary(client: AsyncClient, member: dict) -> None:
+    created = await client.post(
+        BASE, json={"code": "021180", "amount": 10000}, headers=member["headers"]
+    )
+    position_id = created.json()["data"]["id"]
+
+    data = (await client.get(BASE, headers=member["headers"])).json()["data"]
+    assert len(data["items"]) == 1
+    assert data["summary"]["count"] == 1
+    assert data["summary"]["total_amount"] == 10000
 
     removed = await client.delete(f"{BASE}/{position_id}", headers=member["headers"])
     assert removed.status_code == 200, removed.text
-    assert (await client.get(BASE, headers=member["headers"])).json()["data"] == []
+    assert (await client.get(BASE, headers=member["headers"])).json()["data"]["items"] == []
 
 
 async def test_position_invalid_input(client: AsyncClient, member: dict) -> None:
     assert (
         await client.post(
-            BASE,
-            json={"code": "021180", "amount": 0, "cost_nav": 1.25},
-            headers=member["headers"],
+            BASE, json={"code": "021180", "amount": 0}, headers=member["headers"]
         )
     ).status_code == 422
     assert (
         await client.post(
-            BASE,
-            json={"code": "999999", "amount": 100, "cost_nav": 1.25},
-            headers=member["headers"],
+            BASE, json={"code": "999999", "amount": 100}, headers=member["headers"]
         )
     ).status_code == 404
+    assert (
+        await client.post(
+            BASE,
+            json={
+                "code": "021180",
+                "amount": 100,
+                "bought_at": (date.today() + timedelta(days=3)).isoformat(),
+            },
+            headers=member["headers"],
+        )
+    ).status_code in (400, 422)
 
 
 async def test_position_user_isolation(
     client: AsyncClient, member: dict, other_member: dict
 ) -> None:
-    """不能编辑/删除别人的持仓，也不能在对方列表里看到。"""
     created = await client.post(
-        BASE,
-        json={"code": "021180", "amount": 5000, "cost_nav": 1.0},
-        headers=member["headers"],
+        BASE, json={"code": "021180", "amount": 5000}, headers=member["headers"]
     )
     position_id = created.json()["data"]["id"]
 
@@ -142,30 +248,22 @@ async def test_position_user_isolation(
     assert (
         await client.delete(f"{BASE}/{position_id}", headers=other_member["headers"])
     ).status_code == 404
-    assert (await client.get(BASE, headers=other_member["headers"])).json()["data"] == []
+    assert (await client.get(BASE, headers=other_member["headers"])).json()["data"]["items"] == []
 
 
-async def test_dashboard_includes_favorites_and_positions(
-    client: AsyncClient, member: dict
-) -> None:
-    """工作台带完整收藏列表与持仓汇总。"""
+async def test_dashboard_only_has_position_summary(client: AsyncClient, member: dict) -> None:
+    """工作台概览只带汇总，明细由独立接口提供。"""
     await client.post(
         "/api/v1/portal/favorites", json={"code": "021180"}, headers=member["headers"]
     )
-    nav = await _latest_nav()
     await client.post(
-        BASE,
-        json={"code": "021180", "amount": 12000, "cost_nav": 1.2},
-        headers=member["headers"],
+        BASE, json={"code": "021180", "amount": 12000}, headers=member["headers"]
     )
 
     data = (
         await client.get("/api/v1/portal/me/dashboard", headers=member["headers"])
     ).json()["data"]
-    assert [f["code"] for f in data["favorites"]] == ["021180"]
-    assert len(data["positions"]) == 1
-    summary = data["position_summary"]
-    assert summary["count"] == 1
-    assert summary["total_amount"] == 12000
-    assert summary["total_market_value"] == round(10000 * nav, 2)
-    assert summary["total_profit"] == round(10000 * nav - 12000, 2)
+    assert data["summary"]["total_funds"] == 1
+    assert data["position_summary"]["count"] == 1
+    assert data["position_summary"]["total_amount"] == 12000
+    assert "favorites" not in data and "positions" not in data

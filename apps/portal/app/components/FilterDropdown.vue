@@ -57,7 +57,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
         type="button"
         class="dd__opt"
         :class="{ 'dd__opt--active': opt.value === modelValue }"
-        @click="pick(opt.value)"
+        @click="pick(String(opt.value))"
       >
         {{ opt.label }}
         <svg

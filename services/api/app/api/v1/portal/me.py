@@ -18,6 +18,7 @@ from app.schemas.portal_me import (
     PasswordConfirm,
     PositionCreateRequest,
     PositionItem,
+    PositionListResponse,
     PositionUpdateRequest,
     ProfileUpdateRequest,
 )
@@ -78,13 +79,15 @@ async def deactivate(
 
 
 # ---------------------------------------------------------------- 模拟持仓
-@router.get("/positions", summary="我的模拟持仓", response_model=ApiResponse[list[PositionItem]])
+@router.get("/positions", summary="我的模拟持仓", response_model=ApiResponse[PositionListResponse])
 async def list_positions(
     user: CurrentUser, session: SessionDep, request_id: RequestIdDep
-) -> ApiResponse[list[PositionItem]]:
-    """份额 = 买入金额 / 买入净值；市值与盈亏按最新单位净值计算。"""
-    items, _summary = await PositionService(session).overview(user.id)
-    return ApiResponse(data=items, request_id=request_id)
+) -> ApiResponse[PositionListResponse]:
+    """明细 + 汇总一次返回；净值按买入日期自动取，用户无需手填。"""
+    items, summary = await PositionService(session).overview(user.id)
+    return ApiResponse(
+        data=PositionListResponse(items=items, summary=summary), request_id=request_id
+    )
 
 
 @router.post("/positions", summary="新增模拟持仓", response_model=ApiResponse[PositionItem])

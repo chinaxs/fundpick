@@ -12,20 +12,18 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class PositionCreateRequest(BaseModel):
-    """新增模拟持仓：只录金额，份额 = 金额 / 买入净值。"""
+    """新增模拟持仓：用户只录金额 + 日期，净值由服务端按历史数据查。"""
 
     code: str = Field(min_length=6, max_length=12, description="基金代码")
     amount: float = Field(gt=0, le=100_000_000, description="买入金额（元）")
-    cost_nav: float = Field(gt=0, le=1000, description="买入时单位净值")
     bought_at: date | None = Field(default=None, description="模拟买入日期，缺省为今天")
     note: str | None = Field(default=None, max_length=200, description="备注")
 
 
 class PositionUpdateRequest(BaseModel):
-    """编辑持仓：字段全部可选，未提供的保持原值。"""
+    """编辑持仓：字段全部可选；改金额或买入日期会自动重算净值与份额。"""
 
     amount: float | None = Field(default=None, gt=0, le=100_000_000)
-    cost_nav: float | None = Field(default=None, gt=0, le=1000)
     bought_at: date | None = Field(default=None)
     note: str | None = Field(default=None, max_length=200)
 
@@ -39,7 +37,12 @@ class PositionItem(BaseModel):
     type: str
     sector: str | None = None
     amount: float = Field(description="买入金额（成本，元）")
-    cost_nav: float
+    cost_nav: float = Field(description="买入日期对应的单位净值（系统自动取）")
+    cost_nav_date: date | None = Field(default=None, description="该净值对应的日期")
+    nav_source: str = Field(
+        default="history",
+        description="净值来源：history=历史净值 / latest=回退到最新净值",
+    )
     bought_at: date
     note: str | None = None
     shares: float = Field(description="份额 = 金额 / 买入净值")
@@ -58,6 +61,13 @@ class PositionSummary(BaseModel):
     total_profit: float | None = Field(default=None, description="总浮动盈亏（元）")
     profit_rate: float | None = Field(default=None, description="总浮动收益率（%）")
     valued_count: int = Field(default=0, description="已取得最新净值的持仓笔数")
+
+
+class PositionListResponse(BaseModel):
+    """持仓页面一次取回明细与汇总，避免前端自己算导致口径不一致。"""
+
+    items: list[PositionItem] = Field(default_factory=list)
+    summary: PositionSummary = Field(default_factory=PositionSummary)
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -116,8 +126,6 @@ class DashboardResponse(BaseModel):
     return_buckets: list[DashboardDistributionItem] = Field(default_factory=list)
     top_funds: list[DashboardFundItem] = Field(default_factory=list)
     recent_funds: list[DashboardFundItem] = Field(default_factory=list)
-    favorites: list[DashboardFundItem] = Field(
-        default_factory=list, description="完整收藏列表（按关注时间倒序）"
+    position_summary: PositionSummary = Field(
+        default_factory=PositionSummary, description="模拟持仓概览（明细在 /me/positions）"
     )
-    positions: list[PositionItem] = Field(default_factory=list, description="模拟持仓明细")
-    position_summary: PositionSummary = Field(default_factory=PositionSummary)

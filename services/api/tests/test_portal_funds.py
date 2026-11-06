@@ -1,6 +1,5 @@
 """门户基金接口测试：详情费率语义与持仓查询。"""
 
-import pytest
 from httpx import AsyncClient
 
 # 已在采集时验证过真实数据的基金：管理费 1.2 / 托管费 0.2

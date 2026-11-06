@@ -210,8 +210,8 @@ class PortalMeService:
             key=lambda x: x.return_rate if x.return_rate is not None else float("-inf"),
             reverse=True,
         )
-        # 收藏列表给全量（最多 500，与 list_for_dashboard 的 limit 一致）
-        position_items, position_summary = await PositionService(self.session).overview(user_id)
+        # 工作台只带持仓概览，明细与完整收藏各自有独立页面/接口
+        _items, position_summary = await PositionService(self.session).overview(user_id)
         return DashboardResponse(
             period=period,
             summary=summary,
@@ -221,7 +221,5 @@ class PortalMeService:
             return_buckets=return_buckets,
             top_funds=by_return[:5],
             recent_funds=items[:5],  # rows 已按关注时间倒序
-            favorites=items,
-            positions=position_items,
             position_summary=position_summary,
         )

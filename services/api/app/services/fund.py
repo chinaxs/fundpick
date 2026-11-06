@@ -23,8 +23,8 @@ from app.schemas.fund import (
     FundListItem,
     FundQuery,
     FundSortBy,
-    HoldingsResult,
     HoldingRead,
+    HoldingsResult,
     MetricRead,
     NavPointRead,
     NavRange,
@@ -310,7 +310,9 @@ class FundService:
         ]
         top10 = [i for i in items if (i.rank or 99) <= 10]
         total_ratio = round(sum(i.ratio or 0 for i in top10), 2) if top10 else None
-        return HoldingsResult(quarters=quarters, quarter=target, items=items, total_ratio=total_ratio)
+        return HoldingsResult(
+            quarters=quarters, quarter=target, items=items, total_ratio=total_ratio
+        )
 
     async def navs(
         self, code: str, period: NavRange = NavRange.Y1, limit: int = 2000

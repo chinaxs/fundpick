@@ -116,18 +116,24 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/portal/me/positions` | 我的模拟持仓明细（含份额、市值、浮动盈亏） |
-| POST | `/portal/me/positions` | 新增，body：`{code, amount, cost_nav, bought_at?, note?}` |
-| PATCH | `/portal/me/positions/{id}` | 编辑金额/买入净值/日期/备注 |
+| POST | `/portal/me/positions` | 新增，body：`{code, amount, bought_at?, note?}` —— **不接收净值** |
+| PATCH | `/portal/me/positions/{id}` | 编辑金额/买入日期/备注，日期变化时自动重算净值 |
 | DELETE | `/portal/me/positions/{id}` | 删除（硬删除，允许反复增删） |
 
-**只录入金额，不录入份额**：`shares = amount / cost_nav`，服务端实时折算且不落库，
-改金额或改净值都会自动重算，避免份额与成本对不上。
+**用户只录金额 + 日期，净值完全由系统查**：
+按买入日期取 `fund_navs` 中「当天或之前最近一个交易日」的单位净值
+（非交易日自然落到上一交易日）；本地没有该日期之前的历史净值时回退 `funds.latest_nav`，
+并在 `nav_source` 标注 `latest`（明细与提交提示都会如实说明）。
+份额不落库：`shares = amount / cost_nav`，改金额或日期自动重算。
 估值口径：`market_value = shares × funds.latest_nav`、`profit = market_value - amount`、
 `profit_rate = profit / amount × 100`；未取到最新净值的持仓不计入市值汇总。
+校验：买入日期不能是未来，也不能早于基金成立日。
 同一基金允许多笔持仓（分批建仓），故不设唯一约束。所有操作按 `CurrentUser` 隔离，
 `get_owned` 校验归属，越权编辑/删除返回 404。
 
-工作台 `GET /portal/me/dashboard` 额外返回完整 `favorites`、`positions` 与 `position_summary`。
+`GET /portal/me/dashboard` 只返回 `position_summary` 概览；
+明细在 `GET /portal/me/positions`（`{items, summary}`），收藏列表在 `GET /portal/favorites`，
+前端对应 `/dashboard`、`/positions`、`/favorites` 三个独立页面（共用 MemberNav 二级导航）。
 
 全部接口只作用于 `CurrentUser`（令牌 `scope=portal`），不接收 `user_id`，从设计上杜绝越权。
 工作台统计一次 join 取回关注基金后在内存分组（关注数上限 500），避免 6 条 GROUP BY SQL。

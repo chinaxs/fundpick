@@ -12,6 +12,7 @@ import type {
   PortalUser,
   PositionCreatePayload,
   PositionItem,
+  PositionListData,
   PositionUpdatePayload,
   ProfileUpdatePayload,
 } from '@project/shared'
@@ -40,8 +41,6 @@ const EMPTY_DASHBOARD: DashboardData = {
   return_buckets: [],
   top_funds: [],
   recent_funds: [],
-  favorites: [],
-  positions: [],
   position_summary: {
     count: 0,
     total_amount: 0,
@@ -102,7 +101,44 @@ export function deactivateMyAccount(password: string): Promise<MessageResult> {
 }
 
 // ---------------------------------------------------------------- 模拟持仓
-/** 新增模拟持仓：只录金额 + 买入净值，份额由服务端折算 */
+/** 持仓页数据：明细 + 汇总一次取回；净值按买入日期自动取，用户不填净值 */
+export function usePositions() {
+  const { authHeaders } = useAuth()
+  return useAsyncData<PositionListData>('me-positions', async () => {
+    if (!authHeaders.value.Authorization) {
+      return {
+        items: [],
+        summary: {
+          count: 0,
+          total_amount: 0,
+          total_market_value: null,
+          total_profit: null,
+          profit_rate: null,
+          valued_count: 0,
+        },
+      }
+    }
+    const res = await $fetch<ApiResponse<PositionListData>>('/portal/me/positions', {
+      baseURL: useApiBase(),
+      headers: authHeaders.value,
+    })
+    return (
+      res.data ?? {
+        items: [],
+        summary: {
+          count: 0,
+          total_amount: 0,
+          total_market_value: null,
+          total_profit: null,
+          profit_rate: null,
+          valued_count: 0,
+        },
+      }
+    )
+  })
+}
+
+/** 新增模拟持仓：只录金额 + 日期，份额由服务端折算 */
 export function createPosition(payload: PositionCreatePayload): Promise<PositionItem> {
   return meRequest<PositionItem>('/positions', { method: 'POST', body: payload })
 }

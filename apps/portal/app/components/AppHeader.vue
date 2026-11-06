@@ -30,6 +30,7 @@ watch(
 async function handleCommand(command: string) {
   const routes: Record<string, string> = {
     dashboard: '/dashboard',
+    positions: '/positions',
     profile: '/profile',
     favorites: '/favorites',
   }
@@ -81,6 +82,7 @@ async function handleCommand(command: string) {
               </el-dropdown-item>
               <el-dropdown-item divided command="dashboard">我的工作台</el-dropdown-item>
               <el-dropdown-item command="favorites"> 我的关注（{{ favCount }}） </el-dropdown-item>
+              <el-dropdown-item command="positions">模拟持仓</el-dropdown-item>
               <el-dropdown-item command="profile">个人中心</el-dropdown-item>
               <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
             </el-dropdown-menu>

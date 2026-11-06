@@ -35,7 +35,17 @@ class FundPosition(TimestampMixin, SoftDeleteMixin, Base):
         Numeric(14, 2), nullable=False, comment="买入金额（元）"
     )
     cost_nav: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4), nullable=False, comment="买入时单位净值（用于折算份额）"
+        Numeric(12, 4), nullable=False, comment="买入日期对应的单位净值（系统自动取）"
+    )
+    cost_nav_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, comment="成本净值对应的交易日"
+    )
+    nav_source: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="history",
+        server_default="history",
+        comment="净值来源：history=历史净值 / latest=回退最新净值",
     )
     bought_at: Mapped[date] = mapped_column(Date, nullable=False, comment="模拟买入日期")
     note: Mapped[str | None] = mapped_column(String(200), nullable=True, comment="备注")
