@@ -18,6 +18,7 @@ const { data: topScale } = await useFundList(
   'home-top-scale',
 )
 const { data: articles } = await useArticleList({ page: 1, page_size: 3 })
+const { data: filters } = await useFundFilters()
 
 const { isLoggedIn, openAuth } = useAuth()
 
@@ -69,6 +70,10 @@ const typeCards = computed(() =>
       label: t.label || FUND_TYPE_MAP[t.type as FundType] || t.type,
       tone: t.avg_return === null ? 'neutral' : t.avg_return >= 0 ? 'up' : 'down',
     })),
+)
+
+const sectorCards = computed(() =>
+  [...(filters.value?.sectors ?? [])].sort((a, b) => b.count - a.count).slice(0, 12),
 )
 
 const boards = computed(() => [
@@ -278,6 +283,32 @@ useHead({ titleTemplate: null })
               {{ item.avg_return === null ? '—' : fmtPct(item.avg_return) }}
               <small>近 1 年</small>
             </span>
+          </NuxtLink>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 按板块找 ============ -->
+    <section v-if="sectorCards.length" class="section">
+      <div class="container">
+        <div class="section__head">
+          <div>
+            <h2 class="section__title">按板块找基金</h2>
+            <p class="section__sub">新能源、半导体、医药……从看得懂的行业入手</p>
+          </div>
+          <NuxtLink to="/funds" class="link-more">全部板块 →</NuxtLink>
+        </div>
+
+        <div class="sectors">
+          <NuxtLink
+            v-for="item in sectorCards"
+            :key="item.value"
+            :to="{ path: '/funds', query: { sector: item.value } }"
+            class="sector-card"
+          >
+            <span class="sector-card__name">{{ item.label }}</span>
+            <span class="sector-card__count num">{{ item.count.toLocaleString() }} 只</span>
+            <span class="sector-card__arrow">→</span>
           </NuxtLink>
         </div>
       </div>
@@ -783,6 +814,55 @@ useHead({ titleTemplate: null })
   color: var(--muted-2);
 }
 
+/* ================================================================ 板块入口 */
+.sectors {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sector-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.sector-card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.sector-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sector-card__count {
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+
+.sector-card__arrow {
+  align-self: flex-end;
+  margin-top: -18px;
+  font-size: 14px;
+  color: var(--muted-2);
+}
+
+.sector-card:hover .sector-card__arrow {
+  color: var(--brand);
+}
+
 /* ================================================================ 榜单 */
 .boards {
   display: grid;
@@ -975,6 +1055,7 @@ useHead({ titleTemplate: null })
 
   .insights__grid,
   .types,
+  .sectors,
   .boards,
   .posts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -996,6 +1077,7 @@ useHead({ titleTemplate: null })
 
   .insights__grid,
   .types,
+  .sectors,
   .boards,
   .posts {
     grid-template-columns: 1fr;

@@ -41,7 +41,16 @@ export function useFundFilters() {
       const res = await $fetch<ApiResponse<FilterOptions>>('/portal/funds/filters', {
         baseURL: useApiBase(),
       })
-      return res.data ?? { types: [], risk_levels: [], companies: [], periods: [], sort_fields: [] }
+      return (
+        res.data ?? {
+          types: [],
+          risk_levels: [],
+          sectors: [],
+          companies: [],
+          periods: [],
+          sort_fields: [],
+        }
+      )
     },
     { server: true },
   )

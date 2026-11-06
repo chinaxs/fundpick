@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import type { FundPeriod, FundQuery, FundSortBy, FundType, RiskLevel } from '@project/shared'
-import { FUND_PERIOD_MAP, FUND_TYPE_MAP, RISK_LEVEL_MAP } from '@project/shared'
+import type {
+  FundPeriod,
+  FundQuery,
+  FundSector,
+  FundSortBy,
+  FundType,
+  RiskLevel,
+} from '@project/shared'
+import { FUND_PERIOD_MAP, FUND_SECTOR_MAP, FUND_TYPE_MAP, RISK_LEVEL_MAP } from '@project/shared'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,6 +28,7 @@ await loadFavorites()
 const state = reactive<FilterState>({
   keyword: (route.query.keyword as string) ?? '',
   type: (route.query.type as FundType) || undefined,
+  sector: (route.query.sector as FundSector) || undefined,
   risk_level: (route.query.risk_level as RiskLevel) || undefined,
   period: ((route.query.period as FundPeriod) || '1y') as FundPeriod,
   sort_by: ((route.query.sort_by as FundSortBy) || 'return') as FundSortBy,
@@ -39,6 +47,7 @@ watch(params, (val) => {
       ...val,
       keyword: val.keyword || undefined,
       type: val.type || undefined,
+      sector: val.sector || undefined,
       risk_level: val.risk_level || undefined,
       page: val.page > 1 ? String(val.page) : undefined,
     },
@@ -51,6 +60,21 @@ const totalPages = computed(() => {
 })
 
 const quickTypes = computed(() => (filters.value?.types ?? []).filter((t) => t.value !== 'other'))
+
+/** 板块选项：按基金数量降序，热门板块优先 */
+const sectorOptions = computed(() =>
+  [...(filters.value?.sectors ?? [])].sort((a, b) => b.count - a.count),
+)
+
+function clearSector() {
+  state.sector = undefined
+  state.page = 1
+}
+
+function pickSector(value: string) {
+  state.sector = state.sector === value ? undefined : (value as FundSector)
+  state.page = 1
+}
 
 /** 风险等级选项：去掉"风险"后缀，做成短标签（低 / 中低 / 中 / 中高 / 高） */
 const riskOptions = computed(() =>
@@ -83,6 +107,7 @@ function pickRisk(value: string) {
 function resetFilters() {
   state.keyword = ''
   state.type = undefined
+  state.sector = undefined
   state.risk_level = undefined
   state.period = '1y'
   state.sort_by = 'return'
@@ -137,7 +162,8 @@ useSeoMeta({
           <p class="page__desc">
             共 <strong class="num">{{ data?.total?.toLocaleString() ?? 0 }}</strong> 只基金 ·
             {{ FUND_PERIOD_MAP[state.period] }}收益 ·
-            <span v-if="state.type">{{ FUND_TYPE_MAP[state.type] }} · </span>按{{
+            <span v-if="state.type">{{ FUND_TYPE_MAP[state.type] }} · </span>
+            <span v-if="state.sector">{{ FUND_SECTOR_MAP[state.sector] }}主题 · </span>按{{
               filters?.sort_fields?.find((s) => s.value === state.sort_by)?.label ?? '收益'
             }}排序
           </p>
@@ -184,6 +210,31 @@ useSeoMeta({
               @click="pickType(String(item.value))"
             >
               {{ item.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="panel__row">
+          <span class="panel__label">板块</span>
+          <div class="panel__chips">
+            <button
+              type="button"
+              class="chip chip--sector"
+              :class="{ 'chip--active': !state.sector }"
+              @click="clearSector"
+            >
+              全部
+            </button>
+            <button
+              v-for="opt in sectorOptions"
+              :key="opt.value"
+              type="button"
+              class="chip chip--sector"
+              :class="{ 'chip--active': state.sector === opt.value }"
+              :title="`${opt.count.toLocaleString()} 只基金`"
+              @click="pickSector(String(opt.value))"
+            >
+              {{ opt.label }}<small class="chip__count num">{{ opt.count }}</small>
             </button>
           </div>
         </div>
@@ -281,7 +332,13 @@ useSeoMeta({
               <td class="col-name">
                 <NuxtLink :to="`/funds/${fund.code}`" class="fund">
                   <span class="fund__name">{{ fund.name }}</span>
-                  <span class="fund__code num">{{ fund.code }}</span>
+                  <span class="fund__meta">
+                    <span class="fund__code num">{{ fund.code }}</span>
+                    <span v-if="fund.sector" class="fund__sector">
+                      {{ FUND_SECTOR_MAP[fund.sector] }}
+                    </span>
+                    <span v-else class="fund__sector fund__sector--none">综合</span>
+                  </span>
                 </NuxtLink>
               </td>
 
@@ -476,6 +533,24 @@ useSeoMeta({
   border-color: rgb(37 99 235 / 25%);
 }
 
+/* 板块数量多，用更紧凑的 chip */
+.chip--sector {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.chip__count {
+  margin-left: 5px;
+  font-size: 10.5px;
+  color: var(--muted-2);
+}
+
+.chip--active .chip__count {
+  color: var(--brand);
+  opacity: 0.7;
+}
+
 .panel__row--foot {
   justify-content: space-between;
   align-items: center;
@@ -566,6 +641,26 @@ useSeoMeta({
 .fund__code {
   font-size: 11.5px;
   color: var(--muted-2);
+}
+
+.fund__meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.fund__sector {
+  padding: 1px 6px;
+  font-size: 10.5px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 4px;
+}
+
+.fund__sector--none {
+  color: var(--muted-2);
+  background: var(--bg-soft);
 }
 
 .ret {

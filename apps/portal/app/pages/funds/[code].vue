@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   FUND_PERIOD_MAP,
+  FUND_SECTOR_MAP,
   FUND_TYPE_MAP,
   NAV_RANGE_MAP,
   NAV_RANGE_ORDER,
@@ -145,6 +146,14 @@ useSeoMeta({
           <div class="head__meta">
             <span class="mono num">{{ fund?.code }}</span>
             <span class="pill">{{ FUND_TYPE_MAP[fund?.type ?? 'other'] }}</span>
+            <NuxtLink
+              v-if="fund?.sector"
+              :to="{ path: '/funds', query: { sector: fund.sector } }"
+              class="pill pill--brand pill--link"
+              title="按基金名称与跟踪指数归类，查看同板块基金"
+            >
+              {{ FUND_SECTOR_MAP[fund.sector] }}主题
+            </NuxtLink>
             <span
               v-if="fund?.risk_level"
               class="pill"
@@ -459,6 +468,10 @@ useSeoMeta({
   gap: 8px;
   align-items: center;
   margin-top: 12px;
+}
+
+.pill--link:hover {
+  border-color: var(--brand);
 }
 
 .mono {

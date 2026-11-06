@@ -32,6 +32,7 @@ class FundQuery(BaseModel):
     keyword: str | None = Field(default=None, description="基金代码或名称模糊搜索")
     type: FundType | None = Field(default=None, description="基金类型")
     risk_level: RiskLevel | None = Field(default=None, description="风险等级")
+    sector: str | None = Field(default=None, description="主题板块，如 new_energy / semiconductor")
     company_id: int | None = Field(default=None, description="基金公司")
     period: str = Field(default="1y", description="区间：1w/1m/3m/6m/1y/2y/3y/ytd/all")
     sort_by: FundSortBy = FundSortBy.RETURN
@@ -48,6 +49,7 @@ class FundListItem(BaseModel):
     name: str
     type: FundType
     risk_level: RiskLevel | None = None
+    sector: str | None = Field(default=None, description="主题板块 key（NULL=综合/无明确主题）")
     company_name: str | None = None
     manager_name: str | None = None
 
@@ -141,11 +143,18 @@ class FilterOption(BaseModel):
     label: str
 
 
+class SectorOption(FilterOption):
+    """板块筛选项：附带基金数量，便于前端展示热度。"""
+
+    count: int = 0
+
+
 class FilterOptions(BaseModel):
     """筛选项字典，前端下拉框直接用，避免硬编码枚举。"""
 
     types: list[FilterOption] = Field(default_factory=list)
     risk_levels: list[FilterOption] = Field(default_factory=list)
+    sectors: list[SectorOption] = Field(default_factory=list)
     companies: list[FilterOption] = Field(default_factory=list)
     periods: list[FilterOption] = Field(default_factory=list)
     sort_fields: list[FilterOption] = Field(default_factory=list)

@@ -106,8 +106,8 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/portal/funds` | 筛选排行（keyword / type / risk_level / company_id / period / sort_by / sort_order） |
-| GET | `/portal/funds/filters` | 筛选项字典（类型、风险、公司、区间、排序字段） |
+| GET | `/portal/funds` | 筛选排行（keyword / type / risk_level / **sector** / company_id / period / sort_by / sort_order） |
+| GET | `/portal/funds/filters` | 筛选项字典（类型、风险、**板块含数量**、公司、区间、排序字段） |
 | GET | `/portal/funds/{code}` | 基金详情（公司、经理、费率、规模） |
 | GET | `/portal/funds/{code}/metrics` | 各区间指标（收益、回撤、波动、夏普、排名） |
 | GET | `/portal/funds/{code}/navs` | 净值序列，支持 `period`（1m/3m/6m/1y/3y/all）与 `limit`（超限等距抽样） |
@@ -240,3 +240,10 @@ Base URL：`http://127.0.0.1:8000/api/v1`
   （C 类为 0），与管理费是两回事，不能混用。
 - 重仓股 `rank` 不信任数据源的"序号"（有时是季度内排名、有时是全年累计），
   采集时按季度分组、占净值比例降序重排。
+- **风险等级与主题板块都是"规则推导"，不是官方定级/分类**（无公开数据源）：
+  - `risk_level` 按基金类型推导（`sync_funds.py --mode risk-level`）：货币→低、债券→中低、
+    FOF→中、混合/指数→中高、股票/QDII→高，只填 NULL。口径同支付宝 R1–R5 适当性分类。
+  - `sector` 按基金简称/全称/跟踪指数关键词推导（`--mode sector`，规则集中在
+    `app/fund_sectors.py`），特异度高的主题优先（半导体 > 科技、新能源 > 制造）。
+    无主题词则保持 NULL（前端显示"综合"）；`--force` 可按最新规则全量重算。
+    识别前必须剥离"证券投资基金"等通用后缀，否则"证券"会把全库误判为金融板块。

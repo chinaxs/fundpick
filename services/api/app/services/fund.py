@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.datasources import get_provider
+from app.fund_sectors import SECTOR_LABELS, SECTOR_ORDER
 from app.models.fund import Fund, FundType, RiskLevel
 from app.models.fund_nav import FundNav
 from app.repositories.fund import FundRepository
@@ -27,6 +28,7 @@ from app.schemas.fund import (
     MetricRead,
     NavPointRead,
     NavRange,
+    SectorOption,
 )
 from app.schemas.stats import (
     DistributionBucket,
@@ -114,6 +116,7 @@ def to_list_item(row: tuple[Any, ...]) -> FundListItem:
         name=fund.name,
         type=fund.type,
         risk_level=fund.risk_level,
+        sector=fund.sector,
         company_name=company_name,
         manager_name=manager_name,
         latest_nav=fund.latest_nav,
@@ -157,6 +160,7 @@ class FundService:
             full_name=fund.full_name,
             type=fund.type,
             risk_level=fund.risk_level,
+            sector=fund.sector,
             status=fund.status,
             company_name=company_name,
             manager_name=manager.name if manager else None,
@@ -324,9 +328,15 @@ class FundService:
     # ---------------------------------------------------------- 字典
     async def filter_options(self) -> FilterOptions:
         companies = await self.funds.companies()
+        sector_counts = await self.funds.sector_distribution()
         return FilterOptions(
             types=[FilterOption(value=k, label=v) for k, v in TYPE_LABELS.items()],
             risk_levels=[FilterOption(value=k, label=v) for k, v in RISK_LABELS.items()],
+            sectors=[
+                SectorOption(value=key, label=SECTOR_LABELS[key], count=sector_counts[key])
+                for key in SECTOR_ORDER
+                if sector_counts.get(key)
+            ],
             companies=[FilterOption(value=c.id, label=c.name) for c in companies],
             periods=[FilterOption(value=k, label=v) for k, v in PERIOD_LABELS.items()],
             sort_fields=[FilterOption(value=k, label=v) for k, v in SORT_LABELS.items()],

@@ -53,6 +53,30 @@ export const RISK_LEVEL_MAP = {
   high: '高风险',
 } as const
 
+/**
+ * 主题板块字典（与后端 app/fund_sectors.py 保持一致）。
+ * 板块由基金名称/跟踪指数推导，NULL 表示无明显主题（综合）。
+ */
+export const FUND_SECTOR_MAP = {
+  ai: '人工智能',
+  semiconductor: '半导体',
+  new_energy: '新能源',
+  military: '军工',
+  medicine: '医药生物',
+  consumer: '消费',
+  agriculture: '农业',
+  media: '传媒游戏',
+  internet: '互联网',
+  finance: '金融',
+  real_estate: '地产',
+  resources: '资源周期',
+  environment: '环保',
+  infrastructure: '基建',
+  manufacturing: '高端制造',
+  tech: '科技TMT',
+  broad_index: '宽基指数',
+} as const
+
 /** 区间字典 */
 export const FUND_PERIOD_MAP = {
   '1w': '近1周',

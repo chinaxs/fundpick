@@ -161,6 +161,25 @@ export interface ArticleQuery extends PageParams {
 // ---------------------------------------------------------------- 基金
 export type FundType = 'stock' | 'hybrid' | 'bond' | 'index' | 'qdii' | 'money' | 'fof' | 'other'
 
+export type FundSector =
+  | 'ai'
+  | 'semiconductor'
+  | 'new_energy'
+  | 'military'
+  | 'medicine'
+  | 'consumer'
+  | 'agriculture'
+  | 'media'
+  | 'internet'
+  | 'finance'
+  | 'real_estate'
+  | 'resources'
+  | 'environment'
+  | 'infrastructure'
+  | 'manufacturing'
+  | 'tech'
+  | 'broad_index'
+
 export type RiskLevel = 'low' | 'mid_low' | 'mid' | 'mid_high' | 'high'
 
 export type FundStatus = 'open' | 'suspended' | 'closed'
@@ -181,6 +200,8 @@ export interface FundListItem {
   name: string
   type: FundType
   risk_level: RiskLevel | null
+  /** 主题板块 key；null 表示无明显主题（综合） */
+  sector: FundSector | null
   company_name: string | null
   manager_name: string | null
   /** 单位净值 */
@@ -217,6 +238,7 @@ export interface FundQuery extends PageParams {
   keyword?: string
   type?: FundType
   risk_level?: RiskLevel
+  sector?: FundSector
   company_id?: number
   period?: FundPeriod
   sort_by?: FundSortBy
@@ -262,9 +284,14 @@ export interface FilterOption {
   label: string
 }
 
+export interface SectorOption extends FilterOption {
+  count: number
+}
+
 export interface FilterOptions {
   types: FilterOption[]
   risk_levels: FilterOption[]
+  sectors: SectorOption[]
   companies: FilterOption[]
   periods: FilterOption[]
   sort_fields: FilterOption[]

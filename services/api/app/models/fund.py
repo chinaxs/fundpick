@@ -71,6 +71,12 @@ class Fund(TimestampMixin, SoftDeleteMixin, Base):
     risk_level: Mapped[RiskLevel | None] = mapped_column(
         String(20), nullable=True, index=True, comment="风险等级"
     )
+    sector: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+        comment="主题板块（按名称/跟踪指数推导，见 app.fund_sectors）",
+    )
     status: Mapped[FundStatus] = mapped_column(
         String(20), nullable=False, default=FundStatus.OPEN, comment="运作状态"
     )

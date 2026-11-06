@@ -31,6 +31,8 @@ class FundRepository(BaseRepository[Fund]):
             stmt = stmt.where(Fund.type == query.type)
         if query.risk_level:
             stmt = stmt.where(Fund.risk_level == query.risk_level)
+        if query.sector:
+            stmt = stmt.where(Fund.sector == query.sector)
         if query.company_id:
             stmt = stmt.where(Fund.company_id == query.company_id)
         return stmt
@@ -139,6 +141,16 @@ class FundRepository(BaseRepository[Fund]):
     async def companies(self) -> list[FundCompany]:
         stmt = select(FundCompany).order_by(FundCompany.name)
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def sector_distribution(self) -> dict[str, int]:
+        """各主题板块的基金数量（供筛选项字典展示热度）。"""
+        stmt = (
+            select(Fund.sector, func.count(Fund.id))
+            .where(Fund.deleted_at.is_(None), Fund.sector.is_not(None))
+            .group_by(Fund.sector)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {row[0]: int(row[1]) for row in rows}
 
     async def type_distribution(self, period: str = "1y") -> list[tuple[str, int, float | None]]:
         """按基金类型统计数量与区间平均收益。"""

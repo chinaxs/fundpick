@@ -24,7 +24,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ from app.core.logging import get_logger, setup_logging
 from app.datasources import RANK_CATEGORIES, get_provider
 from app.datasources.base import FundSnapshot
 from app.db.session import async_session_factory, dispose_engine
+from app.fund_sectors import SECTOR_LABELS, detect_sector
 from app.models import (
     Fund,
     FundCompany,
@@ -722,8 +723,56 @@ async def derive_risk_levels(session: AsyncSession) -> int:
     return affected
 
 
+# ---------------------------------------------------------------- 主题板块推导
+async def derive_sectors(session: AsyncSession, force: bool = False) -> int:
+    """按名称/跟踪指数推导主题板块（规则见 app.fund_sectors）。
+
+    默认只填 NULL；--force 时按当前规则全量重算（规则调整后用）。
+    无主题词的基金保持 NULL，前端显示"综合"，不强行归类。
+    """
+    rows = (
+        await session.execute(
+            text(
+                "SELECT id, name, full_name, tracking_index, sector FROM funds "
+                "WHERE deleted_at IS NULL"
+            )
+        )
+    ).all()
+
+    buckets: dict[str, list[int]] = {}
+    clear_ids: list[int] = []
+    for fund_id, name, full_name, tracking_index, current in rows:
+        if current is not None and not force:
+            continue
+        target = detect_sector(name, full_name, tracking_index)
+        if target == current:
+            continue
+        if target is None:
+            clear_ids.append(fund_id)
+        else:
+            buckets.setdefault(target, []).append(fund_id)
+
+    affected = 0
+    for sector, ids in buckets.items():
+        for i in range(0, len(ids), BATCH):
+            result = await session.execute(
+                update(Fund).where(Fund.id.in_(ids[i : i + BATCH])).values(sector=sector)
+            )
+            affected += result.rowcount or 0
+        logger.info("[板块] %s -> %d 只", SECTOR_LABELS.get(sector, sector), len(ids))
+    for i in range(0, len(clear_ids), BATCH):
+        result = await session.execute(
+            update(Fund).where(Fund.id.in_(clear_ids[i : i + BATCH])).values(sector=None)
+        )
+        affected += result.rowcount or 0
+
+    await session.commit()
+    logger.info("[板块] 共更新 %d 行，规则覆盖 %d 个板块（%s）", affected, len(buckets), _elapsed())
+    return affected
+
+
 # ---------------------------------------------------------------- 入口
-async def run(mode: str, limit: int | None, codes: list[str] | None) -> None:
+async def run(mode: str, limit: int | None, codes: list[str] | None, force: bool = False) -> None:
     async with async_session_factory() as session:
         if mode in {"quick", "all"}:
             company_ids = await sync_companies(session)
@@ -736,6 +785,8 @@ async def run(mode: str, limit: int | None, codes: list[str] | None) -> None:
             await sync_risks(session, limit)
         if mode == "risk-level":
             await derive_risk_levels(session)
+        if mode == "sector":
+            await derive_sectors(session, force=force)
         if mode in {"scale", "all"}:
             await sync_scale(session)
         if mode in {"detail", "all"}:
@@ -751,14 +802,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="基金数据同步")
     parser.add_argument(
         "--mode",
-        choices=["quick", "risk", "risk-level", "scale", "detail", "navs", "holdings", "all"],
+        choices=["quick", "risk", "risk-level", "sector", "scale", "detail", "navs", "holdings", "all"],
         default="quick",
         help=(
             "quick=基础数据；risk=风险指标；risk-level=按类型推导风险等级；"
-            "navs=净值序列；holdings=季度重仓股；all=全部"
+            "sector=按名称推导主题板块；navs=净值序列；holdings=季度重仓股；all=全部"
         ),
     )
     parser.add_argument("--limit", type=int, default=None, help="限制处理的基金数量（调试用）")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="sector 模式下按当前规则全量重算（默认只填 NULL）",
+    )
     parser.add_argument(
         "--codes",
         type=str,
@@ -769,8 +825,8 @@ def main() -> None:
     codes = [c.strip() for c in args.codes.split(",")] if args.codes else None
 
     setup_logging()
-    logger.info("开始同步，模式=%s limit=%s codes=%s", args.mode, args.limit, codes)
-    asyncio.run(run(args.mode, args.limit, codes))
+    logger.info("开始同步，模式=%s limit=%s codes=%s force=%s", args.mode, args.limit, codes, args.force)
+    asyncio.run(run(args.mode, args.limit, codes, args.force))
     logger.info("同步结束，耗时 %s", _elapsed())
 
 
