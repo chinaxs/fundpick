@@ -1,7 +1,7 @@
 """门户会员的请求/响应模型。
 
-与后台的 `schemas/staff` 刻意分开：门户只暴露展示需要的字段，
-不把 `last_login_at` 这类内部状态泄露给浏览器。
+只暴露会员本人可见的字段：不含 is_active、hashed_password 等内部状态，
+last_login_at / updated_at 属于本人可见的账号信息（个人中心展示）。
 """
 
 from datetime import datetime
@@ -34,6 +34,8 @@ class PortalUserRead(BaseModel):
     full_name: str | None = None
     avatar_url: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
+    last_login_at: datetime | None = None
 
     @property
     def display_name(self) -> str:

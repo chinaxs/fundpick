@@ -333,6 +333,8 @@ export interface PortalUser {
   full_name: string | null
   avatar_url: string | null
   created_at: string
+  updated_at: string | null
+  last_login_at: string | null
 }
 
 /** 登录/注册返回的令牌对 */
@@ -341,4 +343,55 @@ export interface TokenBundle {
   refresh_token: string
   token_type: string
   expires_in: number
+}
+
+// ---------------------------------------------------------------- 会员中心
+/** 个人中心可修改的字段（用户名、状态、密码都不在此列） */
+export interface ProfileUpdatePayload {
+  email?: string | null
+  full_name?: string | null
+  avatar_url?: string | null
+}
+
+export interface DashboardSummary {
+  total_funds: number
+  avg_return: number | null
+  positive_ratio: number | null
+  avg_sharpe: number | null
+  best_return: number | null
+  added_last_7_days: number
+  metric_coverage: number
+  latest_nav_date: string | null
+}
+
+export interface DashboardDistributionItem {
+  key: string
+  label: string
+  count: number
+  avg_return: number | null
+}
+
+export interface DashboardFundItem {
+  code: string
+  name: string
+  type: string
+  sector: string | null
+  risk_level: string | null
+  return_rate: number | null
+  max_drawdown: number | null
+  sharpe: number | null
+  latest_nav: number | null
+  favored_at: string | null
+}
+
+/** 工作台聚合数据：一次请求带齐统计、分布与榜单 */
+export interface DashboardData {
+  period: string
+  summary: DashboardSummary
+  type_distribution: DashboardDistributionItem[]
+  risk_distribution: DashboardDistributionItem[]
+  sector_distribution: DashboardDistributionItem[]
+  return_buckets: DashboardDistributionItem[]
+  top_funds: DashboardFundItem[]
+  recent_funds: DashboardFundItem[]
 }

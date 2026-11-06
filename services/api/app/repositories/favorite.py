@@ -65,6 +65,25 @@ class FavoriteRepository:
         rows = (await self.session.execute(stmt)).all()
         return [tuple(r) for r in rows], total
 
+    async def list_for_dashboard(
+        self, user_id: int, period: str = "1y", limit: int = 500
+    ) -> list[tuple[Any, ...]]:
+        """工作台聚合用：一次取出关注记录 + 基金 + 指定区间指标。
+
+        关注数远小于 500，一次 join 后在 Python 侧分组统计，
+        比写 6 条 GROUP BY SQL 更好维护，也避免多次往返。
+        """
+        metric = aliased(FundMetric)
+        stmt = (
+            select(FundFavorite, Fund, metric)
+            .join(Fund, Fund.id == FundFavorite.fund_id)
+            .outerjoin(metric, and_(metric.fund_id == Fund.id, metric.period == period))
+            .where(FundFavorite.user_id == user_id, Fund.deleted_at.is_(None))
+            .order_by(FundFavorite.created_at.desc())
+            .limit(limit)
+        )
+        return [tuple(r) for r in (await self.session.execute(stmt)).all()]
+
     async def exists(self, user_id: int, fund_id: int) -> bool:
         stmt = select(FundFavorite.id).where(
             FundFavorite.user_id == user_id, FundFavorite.fund_id == fund_id

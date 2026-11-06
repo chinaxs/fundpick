@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 
-const navs = [
+const baseNavs = [
   { label: '首页', to: '/' },
   { label: '基金筛选', to: '/funds' },
   { label: '研报', to: '/articles' },
@@ -13,6 +13,11 @@ const menuOpen = ref(false)
 const { isLoggedIn, displayName, avatarText, user, openAuth, logout } = useAuth()
 const { count: favCount, load: loadFavorites } = useFavorites()
 
+/** 工作台是会员专属，未登录不占用顶部导航位 */
+const navs = computed(() =>
+  isLoggedIn.value ? [...baseNavs, { label: '工作台', to: '/dashboard' }] : baseNavs,
+)
+
 // 登录后拉一次，用于菜单里显示关注数量
 watch(
   isLoggedIn,
@@ -23,8 +28,14 @@ watch(
 )
 
 async function handleCommand(command: string) {
-  if (command === 'favorites') {
-    await navigateTo('/favorites')
+  const routes: Record<string, string> = {
+    dashboard: '/dashboard',
+    profile: '/profile',
+    favorites: '/favorites',
+  }
+  const path = routes[command]
+  if (path) {
+    await navigateTo(path)
     return
   }
   if (command === 'logout') {
@@ -68,10 +79,10 @@ async function handleCommand(command: string) {
               <el-dropdown-item disabled>
                 {{ user?.email || user?.username }}
               </el-dropdown-item>
-              <el-dropdown-item divided command="favorites">
-                我的关注（{{ favCount }}）
-              </el-dropdown-item>
-              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              <el-dropdown-item divided command="dashboard">我的工作台</el-dropdown-item>
+              <el-dropdown-item command="favorites"> 我的关注（{{ favCount }}） </el-dropdown-item>
+              <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+              <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

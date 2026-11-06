@@ -102,6 +102,18 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 
 取消关注是**硬删除**：软删会占住 `(user_id, fund_id)` 唯一约束，导致取消后无法再次关注。
 
+### 门户 · 会员中心（需登录）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/portal/me/dashboard?period=1y` | 工作台聚合：关注数/平均收益/正收益占比/夏普、类型/风险/板块/收益分布、收益榜与最近关注 |
+| PATCH | `/portal/me` | 更新资料：仅 `email` / `full_name` / `avatar_url`，用户名与状态不可改 |
+| POST | `/portal/me/change-password` | 修改密码，校验原密码；JWT 无状态，已签发令牌继续有效至过期 |
+| POST | `/portal/me/deactivate` | 注销账号：body `{password}` 二次校验 → 清空关注 → 软删用户，旧令牌立即失效 |
+
+全部接口只作用于 `CurrentUser`（令牌 `scope=portal`），不接收 `user_id`，从设计上杜绝越权。
+工作台统计一次 join 取回关注基金后在内存分组（关注数上限 500），避免 6 条 GROUP BY SQL。
+
 ### 门户 · 基金（公开）
 
 | 方法 | 路径 | 说明 |
