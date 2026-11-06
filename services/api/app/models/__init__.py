@@ -12,6 +12,7 @@ from app.models.fund_favorite import FundFavorite
 from app.models.fund_holding import FundHolding
 from app.models.fund_metric import FundMetric, MetricPeriod
 from app.models.fund_nav import FundNav
+from app.models.fund_position import FundPosition
 from app.models.fund_sector import FundSector
 from app.models.staff import StaffUser
 from app.models.user import User
@@ -28,6 +29,7 @@ __all__ = [
     "FundManager",
     "FundMetric",
     "FundNav",
+    "FundPosition",
     "FundSector",
     "FundStatus",
     "FundType",

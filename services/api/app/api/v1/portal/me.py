@@ -16,9 +16,13 @@ from app.schemas.portal_auth import PortalUserRead
 from app.schemas.portal_me import (
     DashboardResponse,
     PasswordConfirm,
+    PositionCreateRequest,
+    PositionItem,
+    PositionUpdateRequest,
     ProfileUpdateRequest,
 )
 from app.services.portal_me import PortalMeService
+from app.services.portal_position import PositionService
 
 router = APIRouter(prefix="/me", tags=["门户 · 会员中心（需登录）"])
 
@@ -71,3 +75,52 @@ async def deactivate(
     """二次校验密码后软删账号并清除关注，当前令牌随即失效。"""
     await PortalMeService(session).deactivate(user, payload.password)
     return ApiResponse(data=MessageResponse(message="账号已注销"), request_id=request_id)
+
+
+# ---------------------------------------------------------------- 模拟持仓
+@router.get("/positions", summary="我的模拟持仓", response_model=ApiResponse[list[PositionItem]])
+async def list_positions(
+    user: CurrentUser, session: SessionDep, request_id: RequestIdDep
+) -> ApiResponse[list[PositionItem]]:
+    """份额 = 买入金额 / 买入净值；市值与盈亏按最新单位净值计算。"""
+    items, _summary = await PositionService(session).overview(user.id)
+    return ApiResponse(data=items, request_id=request_id)
+
+
+@router.post("/positions", summary="新增模拟持仓", response_model=ApiResponse[PositionItem])
+async def create_position(
+    payload: PositionCreateRequest,
+    user: CurrentUser,
+    session: SessionDep,
+    request_id: RequestIdDep,
+) -> ApiResponse[PositionItem]:
+    """只录金额 + 买入净值，份额由服务端折算，不涉及真实交易。"""
+    item = await PositionService(session).create(user.id, payload)
+    return ApiResponse(data=item, request_id=request_id)
+
+
+@router.patch(
+    "/positions/{position_id}", summary="编辑模拟持仓", response_model=ApiResponse[PositionItem]
+)
+async def update_position(
+    position_id: int,
+    payload: PositionUpdateRequest,
+    user: CurrentUser,
+    session: SessionDep,
+    request_id: RequestIdDep,
+) -> ApiResponse[PositionItem]:
+    item = await PositionService(session).update(user.id, position_id, payload)
+    return ApiResponse(data=item, request_id=request_id)
+
+
+@router.delete(
+    "/positions/{position_id}", summary="删除模拟持仓", response_model=ApiResponse[MessageResponse]
+)
+async def delete_position(
+    position_id: int,
+    user: CurrentUser,
+    session: SessionDep,
+    request_id: RequestIdDep,
+) -> ApiResponse[MessageResponse]:
+    await PositionService(session).delete(user.id, position_id)
+    return ApiResponse(data=MessageResponse(message="持仓已删除"), request_id=request_id)

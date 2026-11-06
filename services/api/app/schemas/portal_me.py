@@ -6,9 +6,58 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class PositionCreateRequest(BaseModel):
+    """新增模拟持仓：只录金额，份额 = 金额 / 买入净值。"""
+
+    code: str = Field(min_length=6, max_length=12, description="基金代码")
+    amount: float = Field(gt=0, le=100_000_000, description="买入金额（元）")
+    cost_nav: float = Field(gt=0, le=1000, description="买入时单位净值")
+    bought_at: date | None = Field(default=None, description="模拟买入日期，缺省为今天")
+    note: str | None = Field(default=None, max_length=200, description="备注")
+
+
+class PositionUpdateRequest(BaseModel):
+    """编辑持仓：字段全部可选，未提供的保持原值。"""
+
+    amount: float | None = Field(default=None, gt=0, le=100_000_000)
+    cost_nav: float | None = Field(default=None, gt=0, le=1000)
+    bought_at: date | None = Field(default=None)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class PositionItem(BaseModel):
+    """持仓明细：份额/市值/盈亏全部由服务端按最新净值计算。"""
+
+    id: int
+    code: str
+    name: str
+    type: str
+    sector: str | None = None
+    amount: float = Field(description="买入金额（成本，元）")
+    cost_nav: float
+    bought_at: date
+    note: str | None = None
+    shares: float = Field(description="份额 = 金额 / 买入净值")
+    latest_nav: float | None = None
+    latest_nav_date: date | None = None
+    market_value: float | None = Field(default=None, description="当前市值（元）")
+    profit: float | None = Field(default=None, description="浮动盈亏（元）")
+    profit_rate: float | None = Field(default=None, description="浮动收益率（%）")
+    created_at: datetime | None = None
+
+
+class PositionSummary(BaseModel):
+    count: int = 0
+    total_amount: float = Field(default=0, description="总投入成本（元）")
+    total_market_value: float | None = Field(default=None, description="总市值（元）")
+    total_profit: float | None = Field(default=None, description="总浮动盈亏（元）")
+    profit_rate: float | None = Field(default=None, description="总浮动收益率（%）")
+    valued_count: int = Field(default=0, description="已取得最新净值的持仓笔数")
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -67,3 +116,8 @@ class DashboardResponse(BaseModel):
     return_buckets: list[DashboardDistributionItem] = Field(default_factory=list)
     top_funds: list[DashboardFundItem] = Field(default_factory=list)
     recent_funds: list[DashboardFundItem] = Field(default_factory=list)
+    favorites: list[DashboardFundItem] = Field(
+        default_factory=list, description="完整收藏列表（按关注时间倒序）"
+    )
+    positions: list[PositionItem] = Field(default_factory=list, description="模拟持仓明细")
+    position_summary: PositionSummary = Field(default_factory=PositionSummary)

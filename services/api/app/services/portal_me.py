@@ -18,6 +18,7 @@ from app.core.exceptions import ConflictError, UnauthorizedError, ValidationErro
 from app.core.security import verify_password
 from app.fund_sectors import SECTOR_LABELS
 from app.models.fund_favorite import FundFavorite
+from app.models.fund_position import FundPosition
 from app.models.user import User
 from app.repositories.favorite import FavoriteRepository
 from app.repositories.user import UserRepository
@@ -30,6 +31,7 @@ from app.schemas.portal_me import (
 )
 from app.services.auth import AuthService
 from app.services.fund import RISK_LABELS, TYPE_LABELS
+from app.services.portal_position import PositionService
 
 # 收益分桶（与全市场分布保持一致口径）
 RETURN_BUCKETS: list[tuple[str, float | None, float | None]] = [
@@ -101,6 +103,9 @@ class PortalMeService:
             raise UnauthorizedError("密码不正确")
         await self.session.execute(
             sql_delete(FundFavorite).where(FundFavorite.user_id == user.id)
+        )
+        await self.session.execute(
+            sql_delete(FundPosition).where(FundPosition.user_id == user.id)
         )
         await self.users.delete(user, soft=True)
         await self.session.commit()
@@ -205,6 +210,8 @@ class PortalMeService:
             key=lambda x: x.return_rate if x.return_rate is not None else float("-inf"),
             reverse=True,
         )
+        # 收藏列表给全量（最多 500，与 list_for_dashboard 的 limit 一致）
+        position_items, position_summary = await PositionService(self.session).overview(user_id)
         return DashboardResponse(
             period=period,
             summary=summary,
@@ -214,4 +221,7 @@ class PortalMeService:
             return_buckets=return_buckets,
             top_funds=by_return[:5],
             recent_funds=items[:5],  # rows 已按关注时间倒序
+            favorites=items,
+            positions=position_items,
+            position_summary=position_summary,
         )

@@ -6,7 +6,15 @@
  */
 
 import type { MaybeRef } from 'vue'
-import type { ApiResponse, DashboardData, PortalUser, ProfileUpdatePayload } from '@project/shared'
+import type {
+  ApiResponse,
+  DashboardData,
+  PortalUser,
+  PositionCreatePayload,
+  PositionItem,
+  PositionUpdatePayload,
+  ProfileUpdatePayload,
+} from '@project/shared'
 import { useApiBase } from './usePortalApi'
 import { useAuth } from './useAuth'
 
@@ -32,6 +40,16 @@ const EMPTY_DASHBOARD: DashboardData = {
   return_buckets: [],
   top_funds: [],
   recent_funds: [],
+  favorites: [],
+  positions: [],
+  position_summary: {
+    count: 0,
+    total_amount: 0,
+    total_market_value: null,
+    total_profit: null,
+    profit_rate: null,
+    valued_count: 0,
+  },
 }
 
 /** 工作台统计：period 为 ref 时切换区间会自动重新请求 */
@@ -81,4 +99,18 @@ export function deactivateMyAccount(password: string): Promise<MessageResult> {
     method: 'POST',
     body: { password },
   })
+}
+
+// ---------------------------------------------------------------- 模拟持仓
+/** 新增模拟持仓：只录金额 + 买入净值，份额由服务端折算 */
+export function createPosition(payload: PositionCreatePayload): Promise<PositionItem> {
+  return meRequest<PositionItem>('/positions', { method: 'POST', body: payload })
+}
+
+export function updatePosition(id: number, payload: PositionUpdatePayload): Promise<PositionItem> {
+  return meRequest<PositionItem>(`/positions/${id}`, { method: 'PATCH', body: payload })
+}
+
+export function deletePosition(id: number): Promise<MessageResult> {
+  return meRequest<MessageResult>(`/positions/${id}`, { method: 'DELETE' })
 }

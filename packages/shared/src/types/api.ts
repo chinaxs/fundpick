@@ -384,6 +384,53 @@ export interface DashboardFundItem {
   favored_at: string | null
 }
 
+export interface PositionItem {
+  id: number
+  code: string
+  name: string
+  type: string
+  sector: string | null
+  /** 买入金额（成本，元） */
+  amount: number
+  /** 买入时单位净值 */
+  cost_nav: number
+  bought_at: string
+  note: string | null
+  /** 份额 = 金额 / 买入净值，由服务端计算 */
+  shares: number
+  latest_nav: number | null
+  latest_nav_date: string | null
+  market_value: number | null
+  profit: number | null
+  profit_rate: number | null
+  created_at: string | null
+}
+
+export interface PositionSummary {
+  count: number
+  total_amount: number
+  total_market_value: number | null
+  total_profit: number | null
+  profit_rate: number | null
+  valued_count: number
+}
+
+/** 新增模拟持仓：只录金额，份额由服务端折算 */
+export interface PositionCreatePayload {
+  code: string
+  amount: number
+  cost_nav: number
+  bought_at?: string
+  note?: string | null
+}
+
+export interface PositionUpdatePayload {
+  amount?: number
+  cost_nav?: number
+  bought_at?: string
+  note?: string | null
+}
+
 /** 工作台聚合数据：一次请求带齐统计、分布与榜单 */
 export interface DashboardData {
   period: string
@@ -394,4 +441,9 @@ export interface DashboardData {
   return_buckets: DashboardDistributionItem[]
   top_funds: DashboardFundItem[]
   recent_funds: DashboardFundItem[]
+  /** 完整收藏列表 */
+  favorites: DashboardFundItem[]
+  /** 模拟持仓明细 */
+  positions: PositionItem[]
+  position_summary: PositionSummary
 }
