@@ -145,7 +145,13 @@ useSeoMeta({
           <div class="head__meta">
             <span class="mono num">{{ fund?.code }}</span>
             <span class="pill">{{ FUND_TYPE_MAP[fund?.type ?? 'other'] }}</span>
-            <span v-if="fund?.risk_level" class="pill">{{ RISK_LEVEL_MAP[fund.risk_level] }}</span>
+            <span
+              v-if="fund?.risk_level"
+              class="pill"
+              :title="`${RISK_LEVEL_MAP[fund.risk_level]}（按基金类型推导，非官方定级）`"
+            >
+              {{ RISK_LEVEL_MAP[fund.risk_level] }}
+            </span>
             <span v-if="fund?.is_index && fund?.tracking_index" class="pill">
               跟踪 {{ fund.tracking_index }}
             </span>

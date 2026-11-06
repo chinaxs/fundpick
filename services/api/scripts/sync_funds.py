@@ -24,7 +24,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,7 @@ from app.models import (
     FundMetric,
     FundNav,
     FundType,
+    RiskLevel,
 )
 
 logger = get_logger("sync_funds")
@@ -679,6 +680,48 @@ async def link_companies(session: AsyncSession) -> int:
     return affected
 
 
+# ---------------------------------------------------------------- 风险等级推导
+# 销售机构的产品风险定级没有公开接口，行业通行做法是按基金类型推导
+# （与天天基金/蚂蚁财富等平台的展示口径一致）：
+#   货币→低；债券→中低；混合 FoF→中；偏股混合/指数→中高；股票/QDII→高。
+# 这是"规则推导"而非官方定级，仅填充 NULL，有真实数据时永不覆盖。
+TYPE_RISK_MAP: dict[FundType, RiskLevel | None] = {
+    FundType.MONEY: RiskLevel.LOW,
+    FundType.BOND: RiskLevel.MID_LOW,
+    FundType.FOF: RiskLevel.MID,
+    FundType.HYBRID: RiskLevel.MID_HIGH,
+    FundType.INDEX: RiskLevel.MID_HIGH,
+    FundType.STOCK: RiskLevel.HIGH,
+    FundType.QDII: RiskLevel.HIGH,
+    FundType.OTHER: None,  # 无法判断，保持 NULL
+}
+
+
+async def derive_risk_levels(session: AsyncSession) -> int:
+    """按基金类型推导风险等级，只填充 NULL 行。"""
+    affected = 0
+    for fund_type, risk in TYPE_RISK_MAP.items():
+        if risk is None:
+            continue
+        result = await session.execute(
+            text(
+                "UPDATE funds SET risk_level = :risk "
+                "WHERE type = :type AND risk_level IS NULL AND deleted_at IS NULL"
+            ),
+            {"risk": risk.value, "type": fund_type.value},
+        )
+        affected += result.rowcount or 0
+        logger.info("[风险等级] %s -> %s，更新 %d 行", fund_type.value, risk.value, result.rowcount or 0)
+    await session.commit()
+    remaining = (
+        await session.execute(
+            text("SELECT count(*) FROM funds WHERE risk_level IS NULL AND deleted_at IS NULL")
+        )
+    ).scalar()
+    logger.info("[风险等级] 共填充 %d 行，剩余未定级 %d 行（%s）", affected, remaining, _elapsed())
+    return affected
+
+
 # ---------------------------------------------------------------- 入口
 async def run(mode: str, limit: int | None, codes: list[str] | None) -> None:
     async with async_session_factory() as session:
@@ -691,6 +734,8 @@ async def run(mode: str, limit: int | None, codes: list[str] | None) -> None:
             await sync_snapshots(session)
         if mode in {"risk", "all"}:
             await sync_risks(session, limit)
+        if mode == "risk-level":
+            await derive_risk_levels(session)
         if mode in {"scale", "all"}:
             await sync_scale(session)
         if mode in {"detail", "all"}:
@@ -706,9 +751,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="基金数据同步")
     parser.add_argument(
         "--mode",
-        choices=["quick", "risk", "scale", "detail", "navs", "holdings", "all"],
+        choices=["quick", "risk", "risk-level", "scale", "detail", "navs", "holdings", "all"],
         default="quick",
-        help="quick=基础数据；risk=风险指标；navs=净值序列；holdings=季度重仓股；all=全部",
+        help=(
+            "quick=基础数据；risk=风险指标；risk-level=按类型推导风险等级；"
+            "navs=净值序列；holdings=季度重仓股；all=全部"
+        ),
     )
     parser.add_argument("--limit", type=int, default=None, help="限制处理的基金数量（调试用）")
     parser.add_argument(

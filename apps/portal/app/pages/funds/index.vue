@@ -214,27 +214,18 @@ useSeoMeta({
 
         <div class="panel__row panel__row--foot">
           <div class="panel__selects">
-            <label class="field">
-              <span class="field__label">区间</span>
-              <select v-model="state.period" class="field__select" @change="state.page = 1">
-                <option v-for="opt in filters?.periods ?? []" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span class="field__label">排序</span>
-              <select v-model="state.sort_by" class="field__select" @change="state.page = 1">
-                <option
-                  v-for="opt in filters?.sort_fields ?? []"
-                  :key="opt.value"
-                  :value="opt.value"
-                >
-                  {{ opt.label }}
-                </option>
-              </select>
-            </label>
+            <FilterDropdown
+              v-model="state.period"
+              label="区间"
+              :options="filters?.periods ?? []"
+              @update:model-value="state.page = 1"
+            />
+            <FilterDropdown
+              v-model="state.sort_by"
+              label="排序"
+              :options="filters?.sort_fields ?? []"
+              @update:model-value="state.page = 1"
+            />
           </div>
 
           <button type="button" class="panel__reset" @click="resetFilters">
@@ -296,7 +287,12 @@ useSeoMeta({
 
               <td class="col-type">
                 <span class="pill">{{ FUND_TYPE_MAP[fund.type] }}</span>
-                <span v-if="fund.risk_level" class="risk" :class="`risk--${fund.risk_level}`">
+                <span
+                  v-if="fund.risk_level"
+                  class="risk"
+                  :class="`risk--${fund.risk_level}`"
+                  :title="`${RISK_LEVEL_MAP[fund.risk_level]}（按基金类型推导，非官方定级）`"
+                >
                   <i class="risk__dot" />{{ RISK_LEVEL_MAP[fund.risk_level] }}
                 </span>
                 <span v-else class="risk risk--unknown">风险待定</span>
@@ -489,37 +485,7 @@ useSeoMeta({
 .panel__selects {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-}
-
-.field {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.field__label {
-  font-size: 12px;
-  color: var(--muted-2);
-  white-space: nowrap;
-}
-
-.field__select {
-  height: 34px;
-  padding: 0 26px 0 10px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  cursor: pointer;
-  background: var(--bg-soft);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.field__select:focus {
-  background: #fff;
-  border-color: #93c5fd;
+  gap: 10px;
 }
 
 .panel__reset {
