@@ -9,10 +9,14 @@ from app.db.base import Base, SoftDeleteMixin, TimestampMixin
 
 
 class User(TimestampMixin, SoftDeleteMixin, Base):
-    """后台账号 / 门户会员统一用户表。"""
+    """门户会员表。
+
+    只服务于官网：注册、登录、自选关注。后台员工在独立的
+    `staff_users` 表（`app/models/staff.py`），两边互不感知。
+    """
 
     __tablename__ = "users"
-    __table_args__ = {"comment": "用户表"}
+    __table_args__ = {"comment": "门户会员表"}
 
     id: Mapped[int] = mapped_column(
         BigInteger, primary_key=True, autoincrement=True, comment="主键"
@@ -30,16 +34,6 @@ class User(TimestampMixin, SoftDeleteMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="头像地址")
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1", comment="是否启用"
-    )
-    is_staff: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default="0",
-        comment="是否后台账号（可登录 /admin）",
-    )
-    is_superuser: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="0", comment="是否超级管理员"
     )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="最后登录时间"

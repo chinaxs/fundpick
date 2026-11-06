@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { formatDateTime, type User } from '@project/shared'
+import { formatDateTime, type StaffUser } from '@project/shared'
 
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
-/** 个人设置：资料只读展示（改资料走用户管理），密码可自助修改 */
+/** 个人设置：资料只读展示（改资料走后台账号管理），密码可自助修改 */
 const authStore = useAuthStore()
-const profile = ref<User | null>(null)
+const profile = ref<StaffUser | null>(null)
 const profileLoading = ref(true)
 
 const formRef = ref<FormInstance>()
@@ -95,7 +95,7 @@ onMounted(fetchProfile)
               </el-descriptions-item>
               <el-descriptions-item label="角色">
                 <el-tag v-if="profile?.is_superuser" type="danger" size="small">超级管理员</el-tag>
-                <el-tag v-else type="info" size="small">后台账号</el-tag>
+                <el-tag v-else type="warning" size="small">员工</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="注册时间">
                 {{ formatDateTime(profile?.created_at) }}

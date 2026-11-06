@@ -49,10 +49,11 @@ class TypeCount(BaseModel):
 
 
 class RecentUser(BaseModel):
+    """门户会员侧的最近注册（后台员工在独立的 staff_users 表，不混入）。"""
+
     id: int
     username: str
     email: str | None = None
-    is_staff: bool
     created_at: datetime
 
 

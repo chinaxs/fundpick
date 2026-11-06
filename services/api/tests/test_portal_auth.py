@@ -82,23 +82,22 @@ async def test_portal_account_cannot_login_admin(client: AsyncClient, username: 
 
 
 async def test_portal_token_cannot_access_admin_api(client: AsyncClient, username: str) -> None:
-    """即使拿到有效 token，也不能调用后台接口。"""
+    """即使拿到有效 token，也不能调用后台接口（scope 不匹配直接 401）。"""
     data = await _register(client, username)
     headers = {"Authorization": f"Bearer {data['access_token']}"}
 
     for path in ("/api/v1/admin/articles", "/api/v1/admin/funds", "/api/v1/admin/ai/status"):
         resp = await client.get(path, headers=headers)
-        assert resp.status_code == 403, f"{path} 应拒绝门户 token，实际 {resp.status_code}"
+        assert resp.status_code == 401, f"{path} 应拒绝门户 token，实际 {resp.status_code}"
 
 
-async def test_admin_can_login_portal(client: AsyncClient) -> None:
-    """后台账号可以登门户（运营看前台数据是合理需求）。"""
+async def test_staff_account_cannot_login_portal(client: AsyncClient) -> None:
+    """后台员工账号不在 users 表，登不进门户——账号体系彻底分离。"""
     resp = await client.post(
         "/api/v1/portal/auth/login",
         json={"username": "admin", "password": "Admin@123456"},
     )
-    assert resp.status_code == 200
-    assert resp.json()["data"]["access_token"]
+    assert resp.status_code == 401
 
 
 async def test_portal_login_wrong_password(client: AsyncClient, username: str) -> None:

@@ -1,4 +1,7 @@
-"""用户相关 Pydantic 模型。"""
+"""门户会员的 Pydantic 模型（users 表）。
+
+后台员工走 `schemas/staff.py`（staff_users 表），两边字段刻意不共享。
+"""
 
 from datetime import datetime
 
@@ -13,9 +16,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=72, description="登录密码")
-    # 后台创建的用户默认是后台账号；门户注册走 /portal/auth/register，写死 False
-    is_staff: bool = True
-    is_superuser: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -26,8 +26,6 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=72)
     avatar_url: str | None = None
     is_active: bool | None = None
-    is_staff: bool | None = None
-    is_superuser: bool | None = None
 
 
 class UserRead(UserBase):
@@ -36,8 +34,6 @@ class UserRead(UserBase):
     id: int
     avatar_url: str | None = None
     is_active: bool
-    is_staff: bool
-    is_superuser: bool
     last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

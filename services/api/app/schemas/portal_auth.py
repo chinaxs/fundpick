@@ -1,7 +1,7 @@
 """门户会员的请求/响应模型。
 
-与后台的 `schemas.user` 刻意分开：门户只暴露展示需要的字段，
-不把 `is_staff` / `is_superuser` / `last_login_at` 这类内部状态泄露给浏览器。
+与后台的 `schemas/staff` 刻意分开：门户只暴露展示需要的字段，
+不把 `last_login_at` 这类内部状态泄露给浏览器。
 """
 
 from datetime import datetime

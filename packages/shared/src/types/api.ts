@@ -25,8 +25,43 @@ export interface PageParams {
   page_size?: number
 }
 
-// ---------------------------------------------------------------- 用户
+// ---------------------------------------------------------------- 门户会员（users 表）
+/** 官网注册的会员。后台员工见 StaffUser（staff_users 表），两边彻底分离 */
 export interface User {
+  id: number
+  username: string
+  email: string | null
+  full_name: string | null
+  avatar_url: string | null
+  is_active: boolean
+  last_login_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface UserCreatePayload {
+  username: string
+  password: string
+  email?: string | null
+  full_name?: string | null
+}
+
+export interface UserUpdatePayload {
+  email?: string | null
+  full_name?: string | null
+  password?: string
+  avatar_url?: string | null
+  is_active?: boolean
+}
+
+export interface UserQuery extends PageParams {
+  keyword?: string
+  is_active?: boolean
+}
+
+// ---------------------------------------------------------------- 后台员工（staff_users 表）
+/** 可登录管理后台的员工账号 */
+export interface StaffUser {
   id: number
   username: string
   email: string | null
@@ -39,7 +74,7 @@ export interface User {
   updated_at: string
 }
 
-export interface UserCreatePayload {
+export interface StaffCreatePayload {
   username: string
   password: string
   email?: string | null
@@ -47,7 +82,7 @@ export interface UserCreatePayload {
   is_superuser?: boolean
 }
 
-export interface UserUpdatePayload {
+export interface StaffUpdatePayload {
   email?: string | null
   full_name?: string | null
   password?: string
@@ -56,7 +91,7 @@ export interface UserUpdatePayload {
   is_superuser?: boolean
 }
 
-export interface UserQuery extends PageParams {
+export interface StaffQuery extends PageParams {
   keyword?: string
   is_active?: boolean
 }

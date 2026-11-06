@@ -12,6 +12,7 @@ from sqlalchemy import delete
 
 from app.db.session import async_session_factory
 from app.models.audit_log import AuditLog
+from app.models.staff import StaffUser
 from app.models.user import User
 
 PASSWORD = "Admin@123456"
@@ -33,22 +34,22 @@ async def admin_headers(client: AsyncClient) -> dict[str, str]:
 
 @pytest.fixture
 async def staff_account(client: AsyncClient, admin_headers: dict[str, str]) -> AsyncIterator[dict]:
-    """创建一个「是后台账号但不是超管」的用户，用于验证权限分层。"""
+    """创建一个「普通员工（非超管）」账号，用于验证权限分层。"""
     name = f"ts_{uuid.uuid4().hex[:8]}"
     resp = await client.post(
-        "/api/v1/admin/users",
-        json={"username": name, "password": STAFF_PASSWORD, "is_staff": True},
+        "/api/v1/admin/staff",
+        json={"username": name, "password": STAFF_PASSWORD},
         headers=admin_headers,
     )
     assert resp.status_code in (200, 201), resp.text
-    user_id = resp.json()["data"]["id"]
+    staff_id = resp.json()["data"]["id"]
 
     headers = await _login(client, name, STAFF_PASSWORD)
-    yield {"username": name, "id": user_id, "headers": headers}
+    yield {"username": name, "id": staff_id, "headers": headers}
 
     async with async_session_factory() as session:
         await session.execute(delete(AuditLog).where(AuditLog.username == name))
-        await session.execute(delete(User).where(User.id == user_id))
+        await session.execute(delete(StaffUser).where(StaffUser.id == staff_id))
         await session.commit()
 
 
@@ -69,7 +70,8 @@ async def test_dashboard_rejects_portal_member(
         result = await client.get(
             "/api/v1/admin/dashboard", headers={"Authorization": f"Bearer {token}"}
         )
-        assert result.status_code == 403
+        # scope 校验在鉴权层最前面，门户令牌直接 401
+        assert result.status_code == 401
     finally:
         async with async_session_factory() as session:
             await session.execute(delete(User).where(User.username == name))
@@ -107,21 +109,21 @@ async def test_system_info_requires_superuser(
 async def test_audit_log_records_write_operation(
     client: AsyncClient, admin_headers: dict[str, str], staff_account: dict
 ) -> None:
-    """改一次用户资料，审计里应出现这条记录。"""
+    """改一次员工资料，审计里应出现这条记录。"""
     target = staff_account["id"]
     resp = await client.patch(
-        f"/api/v1/admin/users/{target}",
+        f"/api/v1/admin/staff/{target}",
         json={"full_name": "审计测试"},
         headers=admin_headers,
     )
     assert resp.status_code == 200
 
     logs = await client.get(
-        "/api/v1/admin/audit-logs", params={"resource": "users"}, headers=admin_headers
+        "/api/v1/admin/audit-logs", params={"resource": "staff"}, headers=admin_headers
     )
     assert logs.status_code == 200
     items = logs.json()["data"]["items"]
-    assert items, "应至少有一条 users 相关审计"
+    assert items, "应至少有一条 staff 相关审计"
 
     latest = items[0]
     assert latest["username"] == "admin"
@@ -139,17 +141,17 @@ async def test_audit_logs_requires_superuser(client: AsyncClient, staff_account:
 async def test_user_batch_delete_protects_self(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:
-    """批量删除不能删掉操作者本人。"""
+    """批量删除员工账号不能删掉操作者本人。"""
     import sqlalchemy as sa
 
     async with async_session_factory() as session:
         admin_id = (
-            (await session.execute(sa.select(User.id).where(User.username == "admin")))
+            (await session.execute(sa.select(StaffUser.id).where(StaffUser.username == "admin")))
             .scalar_one()
         )
 
     resp = await client.post(
-        "/api/v1/admin/users/batch-delete",
+        "/api/v1/admin/staff/batch-delete",
         json={"ids": [admin_id]},
         headers=admin_headers,
     )
@@ -157,8 +159,28 @@ async def test_user_batch_delete_protects_self(
     assert resp.json()["data"]["affected"] == 0
 
     async with async_session_factory() as session:
-        admin = await session.get(User, admin_id)
+        admin = await session.get(StaffUser, admin_id)
         assert admin is not None and admin.deleted_at is None
+
+
+async def test_staff_crud_requires_superuser(
+    client: AsyncClient, staff_account: dict
+) -> None:
+    """普通员工不能管理员工账号。"""
+    resp = await client.get(
+        "/api/v1/admin/staff", headers=staff_account["headers"]
+    )
+    assert resp.status_code == 403
+
+
+async def test_staff_token_cannot_access_portal(
+    client: AsyncClient, staff_account: dict
+) -> None:
+    """员工令牌 scope=staff，不能当门户会员用。"""
+    resp = await client.get(
+        "/api/v1/portal/auth/me", headers=staff_account["headers"]
+    )
+    assert resp.status_code == 401
 
 
 async def test_article_batch_status_and_delete(

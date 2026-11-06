@@ -36,8 +36,6 @@ class UserService:
             email=payload.email,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
-            is_staff=payload.is_staff,
-            is_superuser=payload.is_superuser,
         )
         await self.session.commit()
         await self.session.refresh(user)

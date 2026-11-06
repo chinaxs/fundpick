@@ -12,6 +12,10 @@ import type {
   ChangePasswordPayload,
   LoginPayload,
   PageResult,
+  StaffCreatePayload,
+  StaffQuery,
+  StaffUpdatePayload,
+  StaffUser,
   TokenResponse,
   User,
   UserCreatePayload,
@@ -28,13 +32,15 @@ import { api } from './client'
 /** 后台接口前缀。门户接口用 `/portal/**`，两边不共用。 */
 const ADMIN = '/admin'
 
+/** 后台员工认证（staff_users 表，与门户会员账号彻底分离） */
 export const authApi = {
   login: (payload: LoginPayload) => api.post<TokenResponse>(`${ADMIN}/auth/login`, payload),
-  me: () => api.get<User>(`${ADMIN}/auth/me`),
+  me: () => api.get<StaffUser>(`${ADMIN}/auth/me`),
   changePassword: (payload: ChangePasswordPayload) =>
     api.post<{ message: string }>(`${ADMIN}/auth/change-password`, payload),
 }
 
+/** 门户会员管理（users 表） */
 export const userApi = {
   list: (params: UserQuery) => api.get<PageResult<User>>(`${ADMIN}/users`, params),
   detail: (id: number) => api.get<User>(`${ADMIN}/users/${id}`),
@@ -44,6 +50,18 @@ export const userApi = {
   remove: (id: number) => api.delete<{ id: number }>(`${ADMIN}/users/${id}`),
   batchRemove: (ids: number[]) =>
     api.post<{ affected: number }>(`${ADMIN}/users/batch-delete`, { ids }),
+}
+
+/** 后台员工账号管理（staff_users 表，仅超管） */
+export const staffApi = {
+  list: (params: StaffQuery) => api.get<PageResult<StaffUser>>(`${ADMIN}/staff`, params),
+  detail: (id: number) => api.get<StaffUser>(`${ADMIN}/staff/${id}`),
+  create: (payload: StaffCreatePayload) => api.post<StaffUser>(`${ADMIN}/staff`, payload),
+  update: (id: number, payload: StaffUpdatePayload) =>
+    api.patch<StaffUser>(`${ADMIN}/staff/${id}`, payload),
+  remove: (id: number) => api.delete<{ id: number }>(`${ADMIN}/staff/${id}`),
+  batchRemove: (ids: number[]) =>
+    api.post<{ affected: number }>(`${ADMIN}/staff/batch-delete`, { ids }),
 }
 
 export const articleApi = {

@@ -1,11 +1,11 @@
 """门户会员认证业务逻辑。
 
-与后台认证只差两点：
+与后台认证完全独立的两套账号体系：
 
-1. **注册出的账号 `is_staff=False`** —— 门户注册绝不能进后台，
-   配合 `/admin/**` 的 `StaffUser` 依赖形成两道闸。
-2. **登录不要求后台身份** —— 任何启用状态的账号都能登门户（后台账号也行，
-   运营自己看前台数据是合理需求）。
+1. **注册写 users 表** —— 门户注册的账号在 staff_users 表里根本不存在，
+   天然登不进后台；
+2. **令牌 scope=portal** —— 即使有人拿门户令牌去调 `/admin/**`，
+   也会被依赖层的 scope 校验拦下（401），双重隔离。
 
 其余（令牌签发、密码校验、刷新）复用 `AuthService`，避免两套逻辑漂移。
 """
@@ -40,17 +40,13 @@ class PortalAuthService:
             email=payload.email,
             hashed_password=hash_password(payload.password),
             is_active=True,
-            # 关键：门户注册的账号不是后台账号
-            is_staff=False,
-            is_superuser=False,
             last_login_at=datetime.now(),
         )
         await self.session.commit()
         await self.session.refresh(user)
-        return issue_tokens(user)
+        return issue_tokens(user.id, "portal")
 
     async def login(self, identifier: str, password: str) -> TokenResponse:
-        # require_staff 默认 False：门户不限制账号类型
         return await AuthService(self.session).login(identifier, password)
 
     async def refresh(self, refresh_token: str) -> TokenResponse:

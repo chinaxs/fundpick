@@ -38,6 +38,8 @@
 | 通用工具 | `app/utils/` | 无副作用的纯函数 | 变成垃圾桶 | — |
 | 数据源 | `app/datasources/` | 抽象外部数据接入，隔离供应商差异 | 把业务规则写进采集层 | [README](../services/api/app/datasources/README.md) |
 | 基金关注 | `app/repositories/favorite.py` + `services/favorite.py` | 会员自选：增删、列表、代码集合 | 把权限判断写进仓储 |
+| 认证（双轨） | `services/auth.py`（AuthService/StaffAuthService） | 门户会员与后台员工各自登录/刷新/改密，共享密码与令牌原语 | 在一个 service 里混两张表 |
+| 后台员工账号 | `models/staff.py` + `repositories/staff.py` + `api/v1/admin/staff.py` | staff_users 表的员工账号 CRUD（仅超管） | 员工与会员共用一张表 |
 | 后台审计 | `app/api/middleware/audit.py` | 自动记录 `/admin/**` 写操作到 `audit_logs` | 在业务代码里手工埋点 |
 | 运营统计 | `app/repositories/admin_stats.py` + `services/admin_stats.py` | 仪表盘聚合查询、系统信息 | 把展示格式化写进后端 |
 | AI 能力 | `app/ai/` | 模型工厂、工具、智能体、工作流 | 绕过 service 改数据 | [README](../services/api/app/ai/README.md) |

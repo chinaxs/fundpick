@@ -17,8 +17,10 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 - `apps/portal` **只**调用 `/portal/**`
 - `apps/admin` **只**调用 `/admin/**`
 
-门户将来会有自己的用户体系（自选、组合），届时登录入口为 `/portal/auth/**`，
-与 `/admin/auth/**` 完全独立——两套身份不互通，避免后台账号能登进门户。
+门户有自己的用户体系（注册、自选），登录入口为 `/portal/auth/**`，
+与 `/admin/auth/**` 完全独立——**两张不同的表**（`users` / `staff_users`），
+令牌各自带 `scope`（`portal` / `staff`），解码端强校验，两套身份互不通用：
+门户令牌调 `/admin/**` 返回 401，员工令牌调 `/portal/auth/me` 同样 401。
 
 > 新增接口时先判断"谁在调用"，再放进对应路由包：
 > `app/api/v1/{portal,admin,common}/`。不要平铺在 `router.py` 里。
@@ -64,15 +66,15 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 { "items": [], "total": 128, "page": 1, "page_size": 20 }
 ```
 
-## 鉴权（后台）
+## 鉴权（后台，staff_users 表）
 
 1. `POST /admin/auth/login`，body：`{ "username": "admin", "password": "..." }`（username 也接受邮箱）
-2. 返回 `access_token`（默认 2 小时）、`refresh_token`（7 天）
+2. 返回 `access_token`（默认 2 小时）、`refresh_token`（7 天），令牌 `scope=staff`
 3. 后续请求带 `Authorization: Bearer <access_token>`
 4. 过期后用 `POST /admin/auth/refresh` 换新 token
-5. `GET /admin/auth/me` 获取当前用户
+5. `GET /admin/auth/me` 获取当前员工
 
-门户接口**不需要**鉴权，直接请求即可。
+门户会员接口走 `/portal/auth/**`（`users` 表，令牌 `scope=portal`），两套账号互不通用。
 
 ## 接口清单
 
@@ -83,11 +85,11 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | POST | `/portal/auth/register` | 注册，成功后直接返回令牌（自动登录） |
 | POST | `/portal/auth/login` | 登录（用户名或邮箱 + 密码） |
 | POST | `/portal/auth/refresh` | 刷新令牌 |
-| GET | `/portal/auth/me` | 当前会员（不含 `is_staff` 等内部字段） |
+| GET | `/portal/auth/me` | 当前会员（只含展示字段，无内部状态） |
 | POST | `/portal/auth/logout` | 语义化退出；JWT 无状态，客户端丢弃令牌即可 |
 
-**门户注册的账号不能登录后台**：`is_staff=False`，后台登录返回 401；
-即便持有有效 token，调用 `/admin/**` 也会得到 403。详见 [ADR-0009](adr/0009-portal-member-isolation.md)。
+**门户注册的账号不能登录后台**：账号只存在 `users` 表，后台登录（查 `staff_users`）返回 401；
+即便持有有效 token（`scope=portal`），调用 `/admin/**` 也会得到 401。详见 [ADR-0009](adr/0009-portal-member-isolation.md)。
 
 ### 门户 · 自选（需登录）
 
@@ -125,25 +127,36 @@ Base URL：`http://127.0.0.1:8000/api/v1`
 | GET | `/portal/articles` | 已发布文章列表 |
 | GET | `/portal/articles/{slug}` | 文章详情（浏览数 +1） |
 
-### 后台 · 认证
+### 后台 · 认证（staff_users 表）
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/admin/auth/login` | 公开 | 登录 |
+| POST | `/admin/auth/login` | 公开 | 员工登录（令牌 scope=staff） |
 | POST | `/admin/auth/refresh` | 公开 | 刷新令牌 |
-| GET | `/admin/auth/me` | 登录 | 当前用户 |
+| GET | `/admin/auth/me` | 登录 | 当前员工 |
 | POST | `/admin/auth/change-password` | 登录 | 修改密码 |
 
-### 后台 · 用户（超管）
+### 后台 · 员工（仅超管，staff_users 表）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/admin/users` | 用户列表（keyword / is_active） |
-| POST | `/admin/users` | 创建用户 |
+| GET | `/admin/staff` | 员工列表（keyword / is_active） |
+| POST | `/admin/staff` | 创建员工账号（可指定超管） |
+| GET | `/admin/staff/{id}` | 详情 |
+| PATCH | `/admin/staff/{id}` | 更新（含重置密码 / 禁用 / 升降超管） |
+| DELETE | `/admin/staff/{id}` | 软删除 |
+| POST | `/admin/staff/batch-delete` | 批量软删除，body `{ids:[1..100]}`；操作者本人自动跳过 |
+
+### 后台 · 用户（超管，门户会员 users 表）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/admin/users` | 会员列表（keyword / is_active） |
+| POST | `/admin/users` | 创建会员 |
 | GET | `/admin/users/{id}` | 详情 |
 | PATCH | `/admin/users/{id}` | 更新 |
 | DELETE | `/admin/users/{id}` | 软删除 |
-| POST | `/admin/users/batch-delete` | 批量软删除，body `{ids:[1..100]}`；操作者本人自动跳过 |
+| POST | `/admin/users/batch-delete` | 批量软删除，body `{ids:[1..100]}` |
 
 ### 后台 · 内容
 

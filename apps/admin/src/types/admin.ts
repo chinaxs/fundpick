@@ -45,7 +45,6 @@ export interface RecentUser {
   id: number
   username: string
   email: string | null
-  is_staff: boolean
   created_at: string
 }
 

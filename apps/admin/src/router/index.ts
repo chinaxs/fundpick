@@ -76,7 +76,7 @@ export const layoutChildren: RouteRecordRaw[] = [
     path: 'users',
     name: 'users',
     component: () => import('@/views/users/UserListView.vue'),
-    meta: { title: '用户管理', icon: 'User', group: '用户' },
+    meta: { title: '门户会员', icon: 'User', group: '用户' },
   },
   {
     path: 'audit-logs',
@@ -90,6 +90,12 @@ export const layoutChildren: RouteRecordRaw[] = [
     name: 'settings',
     component: () => import('@/views/system/SettingsView.vue'),
     meta: { title: '个人设置', icon: 'Avatar', group: '系统' },
+  },
+  {
+    path: 'staff',
+    name: 'staff',
+    component: () => import('@/views/system/StaffListView.vue'),
+    meta: { title: '后台账号', icon: 'Key', group: '系统', superuser: true },
   },
   {
     path: 'system',

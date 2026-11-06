@@ -89,7 +89,6 @@ class AdminStatsService:
                     id=user.id,
                     username=user.username,
                     email=user.email,
-                    is_staff=user.is_staff,
                     created_at=user.created_at,
                 )
                 for user in await self.stats.recent_users()

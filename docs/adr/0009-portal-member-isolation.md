@@ -1,6 +1,6 @@
 # ADR-0009：门户会员与后台账号双重隔离
 
-- 状态：已采纳
+- 状态：已被 [ADR-0010](0010-split-staff-users-table.md) 取代
 - 日期：2026-11-06
 - 相关：[ADR-0008](0008-api-grouping-by-consumer.md)
 

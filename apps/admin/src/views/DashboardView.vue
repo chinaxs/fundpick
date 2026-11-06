@@ -181,20 +181,14 @@ function fmtNum(value: number): string {
 
         <div class="card">
           <div class="card-head">
-            <h3 class="section-title">最近注册用户</h3>
-            <router-link class="more" :to="{ name: 'users' }">用户管理 →</router-link>
+            <h3 class="section-title">最近注册会员</h3>
+            <router-link class="more" :to="{ name: 'users' }">会员管理 →</router-link>
           </div>
           <el-skeleton v-if="loading" :rows="3" animated />
           <el-table v-else :data="overview?.recent_users ?? []" size="small" stripe>
             <el-table-column prop="username" label="用户名" min-width="120" />
             <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">{{ row.email ?? '—' }}</template>
-            </el-table-column>
-            <el-table-column label="身份" width="80">
-              <template #default="{ row }">
-                <el-tag v-if="row.is_staff" size="small" type="warning">员工</el-tag>
-                <el-tag v-else size="small" type="info">用户</el-tag>
-              </template>
             </el-table-column>
             <el-table-column label="注册时间" width="130">
               <template #default="{ row }">{{ fromNow(row.created_at) }}</template>

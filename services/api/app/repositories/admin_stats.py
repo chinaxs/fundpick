@@ -19,6 +19,7 @@ from app.models.fund_company import FundCompany, FundManager
 from app.models.fund_favorite import FundFavorite
 from app.models.fund_metric import FundMetric
 from app.models.fund_nav import FundNav
+from app.models.staff import StaffUser
 from app.models.user import User
 
 
@@ -94,14 +95,18 @@ class AdminStatsRepository:
         return rows, latest
 
     async def user_counts(self) -> tuple[int, int, int]:
-        """总数、后台账号数、近 7 天新增。"""
-        total = await self._scalar(select(func.count()).select_from(User))
+        """门户会员总数、后台员工数、近 7 天新增会员。"""
+        total = await self._scalar(
+            select(func.count()).select_from(User).where(User.deleted_at.is_(None))
+        )
         staff = await self._scalar(
-            select(func.count()).select_from(User).where(User.is_staff.is_(True))
+            select(func.count()).select_from(StaffUser).where(StaffUser.deleted_at.is_(None))
         )
         since = datetime.now() - timedelta(days=7)
         new_7d = await self._scalar(
-            select(func.count()).select_from(User).where(User.created_at >= since)
+            select(func.count())
+            .select_from(User)
+            .where(User.deleted_at.is_(None), User.created_at >= since)
         )
         return total, staff, new_7d
 
@@ -150,7 +155,12 @@ class AdminStatsRepository:
 
     async def recent_users(self, limit: int = 5) -> list[User]:
         rows = (
-            await self.session.execute(select(User).order_by(User.created_at.desc()).limit(limit))
+            await self.session.execute(
+                select(User)
+                .where(User.deleted_at.is_(None))
+                .order_by(User.created_at.desc())
+                .limit(limit)
+            )
         ).scalars()
         return list(rows)
 

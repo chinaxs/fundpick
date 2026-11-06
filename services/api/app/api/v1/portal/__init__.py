@@ -7,8 +7,7 @@
 - 允许 CDN / 反向代理缓存（无用户态差异）。
 
 会员体系在 `auth.py`：路径 `/api/v1/portal/auth/**`，与后台的 `/admin/auth/**` 隔离。
-门户注册的账号 `is_staff=False`，配合 `/admin/**` 的 `StaffUser` 依赖，
-两边身份互不通用。
+两边是两张独立的表（users / staff_users），令牌各自带 scope，身份互不通用。
 """
 
 from fastapi import APIRouter

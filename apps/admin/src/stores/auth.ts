@@ -1,15 +1,21 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { STORAGE_KEYS, type LoginPayload, type TokenResponse, type User } from '@project/shared'
+import {
+  STORAGE_KEYS,
+  type LoginPayload,
+  type StaffUser,
+  type TokenResponse,
+} from '@project/shared'
 
 import { authApi } from '@/api'
 
 /**
  * 登录态：token 存 localStorage，用户信息存内存（刷新后重新拉取）。
+ * 这里的是后台员工账号（staff_users 表），与门户会员体系完全分离。
  */
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string>(localStorage.getItem(STORAGE_KEYS.accessToken) ?? '')
-  const currentUser = ref<User | null>(null)
+  const currentUser = ref<StaffUser | null>(null)
   const loading = ref(false)
 
   const isLoggedIn = computed(() => Boolean(accessToken.value))

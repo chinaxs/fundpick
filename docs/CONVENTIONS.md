@@ -53,9 +53,10 @@
 - 路由按调用方分包：`portal/`（匿名只读）、`admin/`（需登录）、`common/`（探活）。
   `portal/` 的公开接口出现写操作（会员专属接口如 `favorites` 除外，需在 tag 标明登录）、
   `admin/` 出现无鉴权端点，视为设计错误。
-- `/admin/**` 的鉴权依赖**必须**用 `StaffUser`，不能用 `CurrentUser`：
-  门户会员同样持有有效 JWT，用 `CurrentUser` 会让注册用户拿到后台权限
-  （见 [ADR-0009](adr/0009-portal-member-isolation.md)）。
+- `/admin/**` 的鉴权依赖**必须**用 `StaffUser` / `SuperUser`（staff_users 表），
+  不能用 `CurrentUser`（users 表，门户会员）：两边令牌 scope 不同，
+  门户令牌调后台会在依赖层被拒
+  （见 [ADR-0010](adr/0010-split-staff-users-table.md)）。
 - `models` **禁止**写任何业务方法（可以有 `__repr__`、简单 property）。
 - 跨模块复用逻辑 → 抽到 `services`，不要在路由里 import 另一个路由的函数。
 

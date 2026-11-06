@@ -10,6 +10,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 from app.core.config import settings
 
 TokenType = Literal["access", "refresh"]
+TokenScope = Literal["portal", "staff"]
 
 
 # ---------------------------------------------------------------- 密码
@@ -33,6 +34,7 @@ def create_token(
     subject: str | int,
     token_type: TokenType = "access",
     expires_delta: timedelta | None = None,
+    scope: TokenScope = "portal",
     **extra_claims: Any,
 ) -> str:
     now = datetime.now(UTC)
@@ -45,6 +47,9 @@ def create_token(
     payload = {
         "sub": str(subject),
         "type": token_type,
+        # 账号体系声明：门户（users 表）与后台（staff_users 表）各自签发，
+        # 解码端校验 scope，杜绝"拿门户令牌调后台接口"这类串号。
+        "scope": scope,
         "iat": now,
         "exp": now + expires_delta,
         **extra_claims,
@@ -52,7 +57,9 @@ def create_token(
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str, expected_type: TokenType | None = None) -> dict[str, Any]:
+def decode_token(
+    token: str, expected_type: TokenType | None = None, expected_scope: TokenScope | None = None
+) -> dict[str, Any]:
     """解码 token，失败抛 ValueError（由上层转成 401）。"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -63,4 +70,6 @@ def decode_token(token: str, expected_type: TokenType | None = None) -> dict[str
 
     if expected_type and payload.get("type") != expected_type:
         raise ValueError("令牌类型不匹配")
+    if expected_scope and payload.get("scope") != expected_scope:
+        raise ValueError("令牌归属不匹配")
     return payload

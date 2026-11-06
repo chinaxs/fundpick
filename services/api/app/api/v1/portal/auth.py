@@ -1,7 +1,7 @@
 """门户会员认证接口。
 
-与后台 `/admin/auth/**` 完全独立：这边的账号 `is_staff=False`，
-拿到的 token 调不动 `/admin/**`（由 `StaffUser` 依赖拦截）。
+与后台 `/admin/auth/**` 完全独立：账号存在 users 表（后台员工在 staff_users 表），
+签发的令牌带 scope=portal，拿去调 `/admin/**` 会在依赖层被拒。
 """
 
 from fastapi import APIRouter

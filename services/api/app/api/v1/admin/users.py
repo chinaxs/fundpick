@@ -1,4 +1,8 @@
-"""后台 - 用户管理接口。"""
+"""后台 - 门户会员管理接口（users 表）。
+
+注意：这里管理的是**官网注册的会员**，不是后台员工；
+后台员工账号在 `/admin/staff`（staff_users 表）。
+"""
 
 from fastapi import APIRouter, Query
 
