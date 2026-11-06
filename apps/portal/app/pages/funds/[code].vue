@@ -48,6 +48,20 @@ const { data: navs, pending: navsPending } = await useFundNavs(code, navRange)
 
 const navRangeLabel = computed(() => NAV_RANGE_MAP[navRange.value])
 
+/** 历史净值表：与曲线共用同一份数据，最新在前，默认 12 条可展开 */
+const navVisible = ref(12)
+const navHistory = computed(() => [...(navs.value ?? [])].reverse())
+const navShown = computed(() => navHistory.value.slice(0, navVisible.value))
+const hasMoreNavs = computed(() => navHistory.value.length > navVisible.value)
+
+function showMoreNavs() {
+  navVisible.value += 24
+}
+
+function collapseNavs() {
+  navVisible.value = 12
+}
+
 const metricMap = computed(() => {
   const map = new Map<string, FundMetric>()
   for (const item of metrics.value ?? []) map.set(item.period, item)
@@ -97,6 +111,11 @@ function fee(value: number | null | undefined): string {
 function rowTone(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return ''
   return value > 0 ? 'up' : 'down'
+}
+
+function fmtDailyReturn(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
 useSeoMeta({
@@ -182,6 +201,46 @@ useSeoMeta({
 
         <div class="chart-wrap" :class="{ 'chart-wrap--pending': navsPending }">
           <FundNavChart :points="navs ?? []" :height="300" />
+        </div>
+      </section>
+
+      <!-- 历史净值 -->
+      <section v-if="navHistory.length" class="card block">
+        <div class="block__head">
+          <div>
+            <h2 class="block__title">历史净值</h2>
+            <p class="block__sub">
+              {{ navRangeLabel }}共 {{ navHistory.length }} 个交易日 · 按日期倒序
+            </p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th class="ta-r">单位净值</th>
+                <th class="ta-r">日涨跌幅</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in navShown" :key="p.nav_date">
+                <td class="num">{{ p.nav_date }}</td>
+                <td class="ta-r num">{{ p.unit_nav.toFixed(4) }}</td>
+                <td class="ta-r num" :class="rowTone(p.daily_return)">
+                  {{ fmtDailyReturn(p.daily_return) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="hasMoreNavs || navVisible > 12" class="nav-more">
+          <button v-if="hasMoreNavs" type="button" class="nav-more__btn" @click="showMoreNavs">
+            展开更多 · 已显示 {{ navShown.length }} / {{ navHistory.length }}
+          </button>
+          <button v-else type="button" class="nav-more__btn" @click="collapseNavs">收起</button>
         </div>
       </section>
 
@@ -554,6 +613,29 @@ useSeoMeta({
 
 .table-wrap {
   overflow-x: auto;
+}
+
+/* 历史净值展开/收起 */
+.nav-more {
+  padding-top: 14px;
+  text-align: center;
+}
+
+.nav-more__btn {
+  height: 34px;
+  padding: 0 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: all 0.15s ease;
+}
+
+.nav-more__btn:hover {
+  color: var(--brand);
+  border-color: rgb(37 99 235 / 30%);
 }
 
 .ta-r {

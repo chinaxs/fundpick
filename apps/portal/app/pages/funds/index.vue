@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FundPeriod, FundQuery, FundSortBy, FundType, RiskLevel } from '@project/shared'
-import { FUND_PERIOD_MAP, FUND_TYPE_MAP } from '@project/shared'
+import { FUND_PERIOD_MAP, FUND_TYPE_MAP, RISK_LEVEL_MAP } from '@project/shared'
 
 const route = useRoute()
 const router = useRouter()
@@ -52,8 +52,31 @@ const totalPages = computed(() => {
 
 const quickTypes = computed(() => (filters.value?.types ?? []).filter((t) => t.value !== 'other'))
 
+/** 风险等级选项：去掉"风险"后缀，做成短标签（低 / 中低 / 中 / 中高 / 高） */
+const riskOptions = computed(() =>
+  (filters.value?.risk_levels ?? []).map((opt) => ({
+    ...opt,
+    label: opt.label.replace(/风险$/, ''),
+  })),
+)
+
+function clearType() {
+  state.type = undefined
+  state.page = 1
+}
+
 function pickType(type: string) {
   state.type = state.type === type ? undefined : (type as FundType)
+  state.page = 1
+}
+
+function clearRisk() {
+  state.risk_level = undefined
+  state.page = 1
+}
+
+function pickRisk(value: string) {
+  state.risk_level = state.risk_level === value ? undefined : (value as RiskLevel)
   state.page = 1
 }
 
@@ -121,24 +144,10 @@ useSeoMeta({
         </div>
       </header>
 
-      <!-- 快捷类型 -->
-      <div class="chips">
-        <button
-          v-for="item in quickTypes"
-          :key="item.value"
-          type="button"
-          class="chip"
-          :class="{ 'chip--active': state.type === item.value }"
-          @click="pickType(String(item.value))"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-
-      <!-- 筛选区 -->
-      <section class="filters">
-        <div class="filters__search">
-          <svg class="filters__icon" viewBox="0 0 20 20" aria-hidden="true">
+      <!-- 筛选面板 -->
+      <section class="panel">
+        <div class="panel__search">
+          <svg class="panel__icon" viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" />
             <path
               d="M13.5 13.5 18 18"
@@ -150,41 +159,97 @@ useSeoMeta({
           <input
             v-model="state.keyword"
             type="search"
-            placeholder="搜索基金代码或名称"
+            placeholder="搜索基金代码或名称，回车确认"
             @keyup.enter="state.page = 1"
           />
         </div>
 
-        <div class="filters__group">
-          <label class="field">
-            <span class="field__label">风险</span>
-            <select v-model="state.risk_level" class="field__select" @change="state.page = 1">
-              <option :value="undefined">全部</option>
-              <option v-for="opt in filters?.risk_levels ?? []" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-          </label>
+        <div class="panel__row">
+          <span class="panel__label">类型</span>
+          <div class="panel__chips">
+            <button
+              type="button"
+              class="chip"
+              :class="{ 'chip--active': !state.type }"
+              @click="clearType"
+            >
+              全部
+            </button>
+            <button
+              v-for="item in quickTypes"
+              :key="item.value"
+              type="button"
+              class="chip"
+              :class="{ 'chip--active': state.type === item.value }"
+              @click="pickType(String(item.value))"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </div>
 
-          <label class="field">
-            <span class="field__label">区间</span>
-            <select v-model="state.period" class="field__select" @change="state.page = 1">
-              <option v-for="opt in filters?.periods ?? []" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-          </label>
+        <div class="panel__row">
+          <span class="panel__label">风险</span>
+          <div class="panel__chips">
+            <button
+              type="button"
+              class="chip"
+              :class="{ 'chip--active': !state.risk_level }"
+              @click="clearRisk"
+            >
+              全部
+            </button>
+            <button
+              v-for="opt in riskOptions"
+              :key="opt.value"
+              type="button"
+              class="chip"
+              :class="{ 'chip--active': state.risk_level === opt.value }"
+              @click="pickRisk(String(opt.value))"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
 
-          <label class="field">
-            <span class="field__label">排序</span>
-            <select v-model="state.sort_by" class="field__select" @change="state.page = 1">
-              <option v-for="opt in filters?.sort_fields ?? []" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-          </label>
+        <div class="panel__row panel__row--foot">
+          <div class="panel__selects">
+            <label class="field">
+              <span class="field__label">区间</span>
+              <select v-model="state.period" class="field__select" @change="state.page = 1">
+                <option v-for="opt in filters?.periods ?? []" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </label>
 
-          <button type="button" class="filters__reset" @click="resetFilters">重置</button>
+            <label class="field">
+              <span class="field__label">排序</span>
+              <select v-model="state.sort_by" class="field__select" @change="state.page = 1">
+                <option
+                  v-for="opt in filters?.sort_fields ?? []"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <button type="button" class="panel__reset" @click="resetFilters">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9M2.5 12.5V9h3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            重置筛选
+          </button>
         </div>
       </section>
 
@@ -229,8 +294,12 @@ useSeoMeta({
                 </NuxtLink>
               </td>
 
-              <td>
+              <td class="col-type">
                 <span class="pill">{{ FUND_TYPE_MAP[fund.type] }}</span>
+                <span v-if="fund.risk_level" class="risk" :class="`risk--${fund.risk_level}`">
+                  <i class="risk__dot" />{{ RISK_LEVEL_MAP[fund.risk_level] }}
+                </span>
+                <span v-else class="risk risk--unknown">风险待定</span>
               </td>
 
               <td class="ta-r num">{{ num(fund.latest_nav, 4) }}</td>
@@ -320,56 +389,21 @@ useSeoMeta({
   color: var(--ink);
 }
 
-/* ---------------- 快捷标签 ---------------- */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 18px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.chip {
-  height: 32px;
-  padding: 0 14px;
-  font-size: 13px;
-  color: var(--ink-2);
-  cursor: pointer;
+/* ---------------- 筛选面板 ---------------- */
+.panel {
+  padding: 18px 20px 6px;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  transition: all 0.15s ease;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
 }
 
-.chip:hover {
-  border-color: #cbd5e1;
-  background: var(--bg-soft);
-}
-
-.chip--active {
-  color: #fff;
-  background: var(--ink);
-  border-color: var(--ink);
-}
-
-/* ---------------- 筛选栏 ---------------- */
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  margin: 18px 0;
-}
-
-.filters__search {
+.panel__search {
   position: relative;
-  flex: 1 1 280px;
-  max-width: 360px;
+  margin-bottom: 14px;
 }
 
-.filters__icon {
+.panel__icon {
   position: absolute;
   top: 50%;
   left: 13px;
@@ -379,36 +413,88 @@ useSeoMeta({
   transform: translateY(-50%);
 }
 
-.filters__search input {
+.panel__search input {
   width: 100%;
-  height: 40px;
-  padding: 0 14px 0 36px;
+  height: 42px;
+  padding: 0 14px 0 38px;
   font-size: 14px;
   color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  background: var(--bg-soft);
+  border: 1px solid transparent;
+  border-radius: 10px;
   outline: none;
   transition:
+    background 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
-.filters__search input:focus {
+.panel__search input:focus {
+  background: #fff;
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgb(59 130 246 / 12%);
 }
 
-.filters__group {
+.panel__row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.panel__label {
+  flex: 0 0 32px;
+  padding-top: 7px;
+  font-size: 12.5px;
+  color: var(--muted-2);
+}
+
+.panel__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+}
+
+.chip {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: var(--bg-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: all 0.15s ease;
+}
+
+.chip:hover {
+  color: var(--ink);
+  background: #e2e8f0;
+}
+
+.chip--active {
+  color: var(--brand);
+  font-weight: 600;
+  background: rgb(37 99 235 / 8%);
+  border-color: rgb(37 99 235 / 25%);
+}
+
+.panel__row--foot {
+  justify-content: space-between;
   align-items: center;
+  padding: 12px 0 14px;
+}
+
+.panel__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .field {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -419,35 +505,46 @@ useSeoMeta({
 }
 
 .field__select {
-  height: 40px;
-  padding: 0 28px 0 12px;
-  font-size: 13px;
+  height: 34px;
+  padding: 0 26px 0 10px;
+  font-size: 12.5px;
   color: var(--ink-2);
   cursor: pointer;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  background: var(--bg-soft);
+  border: 1px solid transparent;
+  border-radius: 8px;
   outline: none;
+  transition: border-color 0.15s ease;
 }
 
 .field__select:focus {
+  background: #fff;
   border-color: #93c5fd;
 }
 
-.filters__reset {
-  height: 40px;
-  padding: 0 14px;
-  font-size: 13px;
+.panel__reset {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
   color: var(--muted);
   cursor: pointer;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 9px;
+  border: none;
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 
-.filters__reset:hover {
-  color: var(--ink);
-  background: var(--bg-soft);
+.panel__reset svg {
+  width: 13px;
+  height: 13px;
+}
+
+.panel__reset:hover {
+  color: var(--brand);
+  background: rgb(37 99 235 / 6%);
 }
 
 /* ---------------- 表格 ---------------- */
@@ -525,6 +622,71 @@ useSeoMeta({
 
 .muted {
   color: var(--muted);
+}
+
+/* ---------------- 类型 + 风险 ---------------- */
+.col-type {
+  min-width: 110px;
+}
+
+.risk {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.risk__dot {
+  width: 6px;
+  height: 6px;
+  background: var(--muted-2);
+  border-radius: 50%;
+}
+
+.risk--low .risk__dot {
+  background: #059669;
+}
+
+.risk--mid_low .risk__dot {
+  background: #0891b2;
+}
+
+.risk--mid .risk__dot {
+  background: #d97706;
+}
+
+.risk--mid_high .risk__dot {
+  background: #ea580c;
+}
+
+.risk--high .risk__dot {
+  background: #dc2626;
+}
+
+.risk--low {
+  color: #059669;
+}
+
+.risk--mid_low {
+  color: #0891b2;
+}
+
+.risk--mid {
+  color: #b45309;
+}
+
+.risk--mid_high {
+  color: #c2410c;
+}
+
+.risk--high {
+  color: #dc2626;
+}
+
+.risk--unknown {
+  color: var(--muted-2);
 }
 
 .company {
@@ -642,8 +804,23 @@ useSeoMeta({
     font-size: 26px;
   }
 
-  .filters__search {
-    max-width: none;
+  .panel {
+    padding: 14px 14px 4px;
+  }
+
+  .panel__row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .panel__label {
+    padding-top: 0;
+  }
+
+  .panel__row--foot {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 </style>
