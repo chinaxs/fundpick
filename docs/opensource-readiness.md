@@ -1,6 +1,6 @@
 # 开源发布准备结果
 
-更新：2026-11-09。当前版本适合作为早期版本公开源码；本地开源准备与验证已完成。GitHub仓库尚未创建或推送，仍需目标仓库地址、可用登录授权和网络连接。
+更新：2026-11-09。当前版本适合作为早期版本公开源码；本地开源准备与验证已完成。目标公开仓库为[chinaxs/fundpick](https://github.com/chinaxs/fundpick)，主分支为`main`。是否完成推送及远端CI，应以实际仓库提交与Actions结果为准。
 
 ## 已完成
 
@@ -35,6 +35,6 @@ MIT只授权项目原创代码，不授予上游基金数据、行情或资讯�
 
 ## GitHub侧待完成
 
-提供目标仓库地址并完成GitHub登录后，推送完整提交，设置[About与Topics](github-publishing.md)，启用私下漏洞报告并检查实际Actions结果，然后创建首个Release。
+已配置目标仓库；完成本机GitHub登录后，推送完整提交，设置[About与Topics](github-publishing.md)，启用私下漏洞报告并检查实际Actions结果，然后创建首个Release。
 
 生产环境真实备份→隔离恢复演练仍为T12的已知限制；本次开源准备不将其标记为已完成。
