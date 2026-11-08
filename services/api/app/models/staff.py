@@ -10,7 +10,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin
@@ -52,3 +52,12 @@ class StaffUser(TimestampMixin, SoftDeleteMixin, Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<StaffUser id={self.id} username={self.username!r}>"
+
+
+class StaffAdminMutex(Base):
+    """串行化会减少可登录超管数量的操作。"""
+
+    __tablename__ = "staff_admin_mutex"
+    __table_args__ = {"comment": "超级管理员资格变更互斥锁"}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)

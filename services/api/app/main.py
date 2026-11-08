@@ -1,5 +1,7 @@
 """应用入口：create_app 工厂 + 生命周期 + 全局中间件与异常处理。"""
 
+import asyncio
+import contextlib
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -42,7 +44,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     except Exception as exc:  # 数据库未就绪不阻塞启动，便于容器编排
         logger.warning("数据库连接失败：%s", exc)
+
+    scheduler_task: asyncio.Task[None] | None = None
+    if settings.SYNC_SCHEDULER_ENABLED:
+        from app.services.sync_schedule import run_scheduler
+
+        scheduler_task = asyncio.create_task(
+            run_scheduler(settings.SYNC_SCHEDULER_INTERVAL_SECONDS)
+        )
     yield
+    if scheduler_task is not None:
+        scheduler_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await scheduler_task
     await dispose_engine()
     logger.info("应用已关闭")
 
@@ -89,6 +103,10 @@ OPENAPI_TAGS = [
     {"name": "门户 · 统计", "description": "门户首页聚合统计。**匿名可访问，只读。**"},
     {"name": "门户 · 内容", "description": "门户研报/文章。**匿名可访问，只读。**"},
     {
+        "name": "门户 · 反馈",
+        "description": "会员提交问题与查看处理结果。**需要登录。**",
+    },
+    {
         "name": "后台 · 概览",
         "description": "运营仪表盘与系统信息。仪表盘需登录；系统信息仅超管。",
     },
@@ -98,7 +116,9 @@ OPENAPI_TAGS = [
     },
     {
         "name": "后台 · 认证",
-        "description": "后台员工登录（staff_users 表）、刷新令牌、当前用户、改密。**与门户会员账号完全隔离。**",
+        "description": (
+            "后台员工登录（staff_users 表）、刷新令牌、当前用户、改密。**与门户会员账号完全隔离。**"
+        ),
     },
     {
         "name": "后台 · 员工",
@@ -109,7 +129,19 @@ OPENAPI_TAGS = [
         "description": "门户会员管理（users 表）。**仅超管权限。**",
     },
     {"name": "后台 · 内容", "description": "后台文章管理（增删改查、发布/撤回）。**需要登录。**"},
-    {"name": "后台 · 基金", "description": "后台基金数据管理与同步状态。**需要登录。**"},
+    {
+        "name": "后台 · 基金",
+        "description": (
+            "基金数据管理与同步状态。**需要登录**；手动触发同步仅超管，任务在独立子进程执行。"
+        ),
+    },
+    {
+        "name": "后台 · 会员支持",
+        "description": (
+            "反馈工单、密码重置申请与会员只读排查。**仅超管**；"
+            "查看交易明细会写入审计，且不提供修改账本的能力。"
+        ),
+    },
     {
         "name": "后台 · AI",
         "description": "AI 助手与内容质检。**需要登录；未配置模型密钥时返回 503。**",

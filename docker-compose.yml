@@ -6,10 +6,10 @@ services:
     container_name: study-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: test_study
-      MYSQL_USER: study_app
-      MYSQL_PASSWORD: study_app_123456
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB:-fundpick}
+      MYSQL_USER: ${MYSQL_USER:-study_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
@@ -19,7 +19,7 @@ services:
     volumes:
       - study_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-proot123456']
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD"']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -37,13 +37,17 @@ services:
       DEBUG: 'false'
       MYSQL_HOST: mysql
       MYSQL_PORT: '3306'
-      MYSQL_USER: study_app
-      MYSQL_PASSWORD: study_app_123456
-      MYSQL_DB: test_study
-      SECRET_KEY: change-me-in-production
-      CORS_ORIGINS: http://localhost:5174,http://localhost:3000
+      MYSQL_USER: ${MYSQL_USER:-study_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB:-fundpick}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to explicit HTTPS origins}
     ports:
       - '8000:8000'
+    # 日志与备份必须落在卷上：容器重建后仍能追溯、仍能恢复
+    volumes:
+      - study_api_logs:/app/logs
+      - study_api_backups:/app/backups
     # 首次启动先迁移再起服务
     command: >
       sh -c "uv run alembic upgrade head &&
@@ -51,3 +55,5 @@ services:
 
 volumes:
   study_mysql_data:
+  study_api_logs:
+  study_api_backups:

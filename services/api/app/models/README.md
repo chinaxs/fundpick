@@ -21,3 +21,9 @@
 
 ## 依赖
 上游：`db.base` ｜ 下游：`repositories`、`services`、`alembic`
+
+`fund_transactions` 为已确认模拟交易与作废流水，含会员内唯一 request_key、费用、净值来源、份额及剩余成本快照；`fund_positions` 保留旧持仓供核对。
+
+`trade_applications` 保存外部平台待确认申请；交易表新增平台、申请时间、净值所属日/平台确认日、回执编号及来源，旧折算来源保留。
+
+`fund_fee_schedules` 缓存公开交易费率及查询时间/来源；自动交易的 calculation_basis 保存净值日、费用规则和持有批次依据。待处理申请 automatic_processing 区分自动补齐与人工确认。

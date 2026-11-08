@@ -5,8 +5,27 @@
  * 都读同一份集合，只请求一次 `/portal/favorites/codes`，避免逐行查询。
  */
 
-import type { ApiResponse } from '@project/shared'
+import type { ApiResponse, FundListItem, PageResult } from '@project/shared'
+import type { MaybeRef } from 'vue'
 import { useApiBase } from './usePortalApi'
+
+/** 按账号隔离关注列表，登录后自动加载，避免展示上一个账号的清单。 */
+export function useFavoriteList(page: MaybeRef<number>, pageSize = 20) {
+  const { user, authHeaders } = useAuth()
+  return useAsyncData<PageResult<FundListItem> | null>(
+    () => `favorites-list-${user.value?.id ?? 'guest'}`,
+    async () => {
+      if (!user.value) return null
+      const response = await $fetch<ApiResponse<PageResult<FundListItem>>>('/portal/favorites', {
+        baseURL: useApiBase(),
+        headers: authHeaders.value,
+        query: { page: unref(page), page_size: pageSize },
+      })
+      return response.data
+    },
+    { watch: [() => unref(page), () => authHeaders.value.Authorization] },
+  )
+}
 
 export function useFavorites() {
   const apiBase = useApiBase()

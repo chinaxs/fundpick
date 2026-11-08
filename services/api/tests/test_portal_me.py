@@ -89,9 +89,7 @@ async def test_dashboard_reflects_favorites(client: AsyncClient, member: dict) -
 
     other_name = f"tm_{uuid4().hex[:10]}"
     other = await _register(client, other_name)
-    other_data = (
-        await client.get("/api/v1/portal/me/dashboard", headers=other)
-    ).json()["data"]
+    other_data = (await client.get("/api/v1/portal/me/dashboard", headers=other)).json()["data"]
     assert other_data["summary"]["total_funds"] == 0
 
     async with async_session_factory() as session:

@@ -9,16 +9,21 @@ from typing import Any
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.datasources import get_provider
 from app.fund_sectors import SECTOR_LABELS, SECTOR_ORDER
+from app.fund_share_class import split_share_class
 from app.models.fund import Fund, FundType, RiskLevel
 from app.models.fund_nav import FundNav
 from app.repositories.fund import FundRepository
 from app.schemas.common import PageResult
 from app.schemas.fund import (
+    COMPARE_PERIODS,
+    ComparePeriod,
     FilterOption,
     FilterOptions,
+    FundCompareItem,
+    FundCompareResult,
     FundDetail,
     FundListItem,
     FundQuery,
@@ -110,10 +115,13 @@ def to_list_item(row: tuple[Any, ...]) -> FundListItem:
     抽取出来是为了让"关注列表"复用同一套映射，避免两个接口字段口径不一致。
     """
     fund, metric, company_name, manager_name = row
+    base_name, share_class = split_share_class(fund.name)
     return FundListItem(
         id=fund.id,
         code=fund.code,
         name=fund.name,
+        share_class=share_class,
+        base_name=base_name,
         type=fund.type,
         risk_level=fund.risk_level,
         sector=fund.sector,
@@ -153,10 +161,13 @@ class FundService:
         if row is None:
             raise NotFoundError("基金不存在")
         fund, company_name, manager = row
+        base_name, share_class = split_share_class(fund.name)
         return FundDetail(
             id=fund.id,
             code=fund.code,
             name=fund.name,
+            share_class=share_class,
+            base_name=base_name,
             full_name=fund.full_name,
             type=fund.type,
             risk_level=fund.risk_level,
@@ -177,6 +188,73 @@ class FundService:
             tracking_index=fund.tracking_index,
         )
 
+    async def compare(self, codes: list[str]) -> FundCompareResult:
+        """2–3 只基金横向对比。
+
+        份额类别单独返回，避免把同一产品的 A/C 当成两个不同标的；
+        区间数据缺失时 available=False，前端显示「无数据」而不是 0。
+        """
+        unique: list[str] = []
+        for raw in codes:
+            code = raw.strip()
+            if code and code not in unique:
+                unique.append(code)
+        if len(unique) < 2:
+            raise ValidationError("至少选择 2 只基金进行对比")
+        if len(unique) > 3:
+            raise ValidationError("最多对比 3 只基金")
+
+        items: list[FundCompareItem] = []
+        for code in unique:
+            row = await self.funds.get_detail(code)
+            if row is None:
+                raise NotFoundError(f"基金 {code} 不存在或已下架")
+            fund, company_name, manager = row
+            metric_map = {metric.period: metric for metric in await self.funds.metrics(fund.id)}
+            periods: list[ComparePeriod] = []
+            for period, label in COMPARE_PERIODS:
+                metric = metric_map.get(period)
+                risk_values = (
+                    (metric.max_drawdown, metric.volatility, metric.sharpe)
+                    if metric is not None
+                    else (None, None, None)
+                )
+                periods.append(
+                    ComparePeriod(
+                        period=period,
+                        label=label,
+                        return_rate=metric.return_rate if metric else None,
+                        max_drawdown=metric.max_drawdown if metric else None,
+                        sharpe=metric.sharpe if metric else None,
+                        volatility=metric.volatility if metric else None,
+                        risk_nav_date=metric.risk_nav_date if metric else None,
+                        available=all(value is not None for value in risk_values),
+                    )
+                )
+            base_name, share_class = split_share_class(fund.name)
+            items.append(
+                FundCompareItem(
+                    code=fund.code,
+                    name=fund.name,
+                    share_class=share_class,
+                    base_name=base_name,
+                    type=fund.type,
+                    type_label=TYPE_LABELS.get(fund.type, str(fund.type)),
+                    risk_level=fund.risk_level,
+                    risk_label=RISK_LABELS.get(fund.risk_level) if fund.risk_level else None,
+                    company_name=company_name,
+                    manager_name=manager.name if manager else None,
+                    latest_nav=fund.latest_nav,
+                    latest_nav_date=fund.latest_nav_date,
+                    scale=fund.scale,
+                    fee_rate=fund.management_fee,
+                    custody_fee=fund.custody_fee,
+                    inception_date=fund.inception_date,
+                    periods=periods,
+                )
+            )
+        return FundCompareResult(items=items)
+
     async def metrics(self, code: str) -> list[MetricRead]:
         fund = await self._require_fund(code)
         rows = await self.funds.metrics(fund.id)
@@ -188,6 +266,16 @@ class FundService:
                 max_drawdown=m.max_drawdown,
                 volatility=m.volatility,
                 sharpe=m.sharpe,
+                risk_nav_date=m.risk_nav_date,
+                risk_source=m.risk_source,
+                risk_coverage=sum(
+                    value is not None for value in (m.max_drawdown, m.volatility, m.sharpe)
+                ),
+                risk_stale=(
+                    m.risk_nav_date is None
+                    or fund.latest_nav_date is None
+                    or m.risk_nav_date != fund.latest_nav_date
+                ),
                 rank=m.rank,
                 total=m.total,
             )
@@ -260,12 +348,12 @@ class FundService:
             years = {str(datetime.now().year), str(datetime.now().year - 1)}
             for year in sorted(years, reverse=True):
                 try:
-                    rows = await asyncio.to_thread(
+                    provider_rows = await asyncio.to_thread(
                         get_provider().fund_holdings, code, year
                     )
                 except Exception:
                     continue
-                if rows:
+                if provider_rows:
                     payload = [
                         {
                             "fund_id": fund.id,
@@ -277,7 +365,7 @@ class FundService:
                             "shares": h.shares,
                             "market_value": h.market_value,
                         }
-                        for h in rows
+                        for h in provider_rows
                     ]
                     stmt = insert(FundHolding).values(payload)
                     stmt = stmt.on_duplicate_key_update(
@@ -295,7 +383,7 @@ class FundService:
         if target is None:
             return HoldingsResult(quarters=quarters, quarter=None, items=[], total_ratio=None)
 
-        rows = await self.funds.holdings(fund.id, target)
+        holding_rows = await self.funds.holdings(fund.id, target)
         items = [
             HoldingRead(
                 quarter=h.quarter,
@@ -306,7 +394,7 @@ class FundService:
                 shares=float(h.shares) if h.shares is not None else None,
                 market_value=float(h.market_value) if h.market_value is not None else None,
             )
-            for h in rows
+            for h in holding_rows
         ]
         top10 = [i for i in items if (i.rank or 99) <= 10]
         total_ratio = round(sum(i.ratio or 0 for i in top10), 2) if top10 else None

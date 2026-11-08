@@ -20,7 +20,8 @@ from app.models.user import User
 from app.repositories.user import UserRepository
 from app.schemas.auth import TokenResponse
 from app.schemas.portal_auth import RegisterRequest
-from app.services.auth import AuthService, issue_tokens
+from app.services.auth import AuthService
+from app.services.auth_sessions import issue_tokens
 
 
 class PortalAuthService:
@@ -44,10 +45,12 @@ class PortalAuthService:
         )
         await self.session.commit()
         await self.session.refresh(user)
-        return issue_tokens(user.id, "portal")
+        return await issue_tokens(self.session, user.id, "portal")
 
-    async def login(self, identifier: str, password: str) -> TokenResponse:
-        return await AuthService(self.session).login(identifier, password)
+    async def login(
+        self, identifier: str, password: str, client_ip: str | None = None
+    ) -> TokenResponse:
+        return await AuthService(self.session).login(identifier, password, client_ip)
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
         return await AuthService(self.session).refresh(refresh_token)

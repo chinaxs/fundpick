@@ -1,6 +1,7 @@
 """模拟持仓：金额录入、按买入日期自动取净值、份额折算与会员隔离。"""
 
 from datetime import date, timedelta
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -145,11 +146,16 @@ async def test_fallback_to_latest_nav_when_no_history(client: AsyncClient, membe
         ).first()
     assert row is not None, "000001 应有最新净值"
 
-    resp = await client.post(
-        BASE,
-        json={"code": "000001", "amount": 8000},
-        headers=member["headers"],
-    )
+    # 显式模拟该基金无历史序列，避免用户浏览详情后补采历史导致测试前提失效。
+    with patch(
+        "app.repositories.position.PositionRepository.nav_on_or_before",
+        new=AsyncMock(return_value=None),
+    ):
+        resp = await client.post(
+            BASE,
+            json={"code": "000001", "amount": 8000},
+            headers=member["headers"],
+        )
     assert resp.status_code == 200, resp.text
     item = resp.json()["data"]
     assert item["nav_source"] == "latest"
@@ -173,9 +179,7 @@ async def test_edit_amount_and_date(client: AsyncClient, member: dict) -> None:
         headers=member["headers"],
     )
     assert edited_amount.status_code == 200, edited_amount.text
-    assert edited_amount.json()["data"]["shares"] == round(
-        20000 / item["cost_nav"], 2
-    )
+    assert edited_amount.json()["data"]["shares"] == round(20000 / item["cost_nav"], 2)
 
     older = date.today() - timedelta(days=120)
     nav, nav_date = await _expected_nav("021180", older)
@@ -208,14 +212,10 @@ async def test_list_returns_items_and_summary(client: AsyncClient, member: dict)
 
 async def test_position_invalid_input(client: AsyncClient, member: dict) -> None:
     assert (
-        await client.post(
-            BASE, json={"code": "021180", "amount": 0}, headers=member["headers"]
-        )
+        await client.post(BASE, json={"code": "021180", "amount": 0}, headers=member["headers"])
     ).status_code == 422
     assert (
-        await client.post(
-            BASE, json={"code": "999999", "amount": 100}, headers=member["headers"]
-        )
+        await client.post(BASE, json={"code": "999999", "amount": 100}, headers=member["headers"])
     ).status_code == 404
     assert (
         await client.post(
@@ -256,13 +256,11 @@ async def test_dashboard_only_has_position_summary(client: AsyncClient, member: 
     await client.post(
         "/api/v1/portal/favorites", json={"code": "021180"}, headers=member["headers"]
     )
-    await client.post(
-        BASE, json={"code": "021180", "amount": 12000}, headers=member["headers"]
-    )
+    await client.post(BASE, json={"code": "021180", "amount": 12000}, headers=member["headers"])
 
-    data = (
-        await client.get("/api/v1/portal/me/dashboard", headers=member["headers"])
-    ).json()["data"]
+    data = (await client.get("/api/v1/portal/me/dashboard", headers=member["headers"])).json()[
+        "data"
+    ]
     assert data["summary"]["total_funds"] == 1
     assert data["position_summary"]["count"] == 1
     assert data["position_summary"]["total_amount"] == 12000

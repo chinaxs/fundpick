@@ -63,6 +63,12 @@ class ConflictError(AppException):
     message = "资源冲突"
 
 
+class RateLimitError(AppException):
+    status_code = 429
+    code = 42900
+    message = "请求过于频繁，请稍后重试"
+
+
 class ValidationError(AppException):
     status_code = 422
     code = 42200

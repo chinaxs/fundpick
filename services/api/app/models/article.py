@@ -51,5 +51,36 @@ class Article(TimestampMixin, SoftDeleteMixin, Base):
         DateTime, nullable=True, index=True, comment="发布时间"
     )
 
+    # ---- 资讯同步相关 ----
+    # 外部快讯只存标题/摘要/来源/原文链接，不存正文（版权）；
+    # 同步进来的文章一律是草稿，后台审核后才发布。
+    source: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="来源标识：eastmoney / cls / ths / ..."
+    )
+    source_name: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="来源展示名，如 财联社"
+    )
+    source_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="原文链接，没有则留空"
+    )
+    category: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="market",
+        server_default="market",
+        index=True,
+        comment="分类：policy / market / company / other",
+    )
+    origin: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="manual",
+        server_default="manual",
+        comment="manual 人工撰写 / sync 外部同步",
+    )
+    external_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, comment="外部资讯指纹，用于去重"
+    )
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Article id={self.id} slug={self.slug!r} status={self.status}>"

@@ -131,7 +131,13 @@ export function useAuth() {
 
   async function logout(): Promise<void> {
     try {
-      await $fetch('/portal/auth/logout', { baseURL: apiBase, method: 'POST' })
+      if (refreshToken.value) {
+        await $fetch('/portal/auth/logout', {
+          baseURL: apiBase,
+          method: 'POST',
+          body: { refresh_token: refreshToken.value },
+        })
+      }
     } catch {
       // 服务端无状态，通知失败也不影响本地清理
     }

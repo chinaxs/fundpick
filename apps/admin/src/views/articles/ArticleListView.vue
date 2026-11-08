@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  ARTICLE_CATEGORY_MAP,
   ARTICLE_STATUS_MAP,
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
@@ -11,7 +12,7 @@ import {
   type ArticleStatus,
 } from '@project/shared'
 
-import { articleApi } from '@/api'
+import { articleApi, fundApi } from '@/api'
 import { csvFilename, exportCsv } from '@/utils/export'
 
 /** 列表页负责检索、批量操作与导出；新建/编辑跳独立页 */
@@ -22,6 +23,7 @@ const rows = ref<ArticleListItem[]>([])
 const total = ref(0)
 const selected = ref<ArticleListItem[]>([])
 const batchSubmitting = ref(false)
+const syncing = ref(false)
 const query = reactive({
   page: 1,
   page_size: DEFAULT_PAGE_SIZE,
@@ -33,6 +35,37 @@ const statusOptions = Object.entries(ARTICLE_STATUS_MAP).map(([value, item]) => 
   value: value as ArticleStatus,
   label: item.label,
 }))
+
+function categoryLabel(category: string) {
+  return ARTICLE_CATEGORY_MAP[category]?.label ?? '其他'
+}
+
+/**
+ * 一键同步资讯快讯。复用 fundApi 的同步任务通道（mode=news），
+ * 轮询到任务结束后再刷新列表，让编辑立刻看到新草稿。
+ */
+async function handleSyncNews() {
+  syncing.value = true
+  try {
+    const job = await fundApi.triggerSync({ mode: 'news' })
+    ElMessage.info('正在抓取政策 / 市场快讯…')
+    for (let i = 0; i < 20; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const current = await fundApi.syncJob(job.id)
+      if (current.status !== 'running') {
+        if (current.status === 'success') {
+          ElMessage.success(current.message || '同步完成，草稿已生成')
+        } else {
+          ElMessage.warning('同步未成功，请到「采集监控」查看任务日志')
+        }
+        await fetchList()
+        break
+      }
+    }
+  } finally {
+    syncing.value = false
+  }
+}
 
 function statusMeta(status: ArticleStatus) {
   return ARTICLE_STATUS_MAP[status]
@@ -158,6 +191,8 @@ function handleExport() {
     { header: 'ID', value: (a) => a.id },
     { header: '标题', value: (a) => a.title },
     { header: 'Slug', value: (a) => a.slug },
+    { header: '分类', value: (a) => categoryLabel(a.category) },
+    { header: '来源', value: (a) => a.source_name ?? '原创' },
     { header: '状态', value: (a) => ARTICLE_STATUS_MAP[a.status]?.label ?? a.status },
     { header: '浏览量', value: (a) => a.view_count },
     { header: '发布时间', value: (a) => formatDateTime(a.published_at) },
@@ -173,6 +208,9 @@ onMounted(fetchList)
     <div class="page__header">
       <h2 class="page__title">文章管理</h2>
       <div class="header-actions">
+        <el-button type="info" plain :loading="syncing" @click="handleSyncNews">
+          <el-icon><Refresh /></el-icon>同步资讯
+        </el-button>
         <el-button :disabled="!rows.length" @click="handleExport">
           <el-icon><Download /></el-icon>导出 CSV
         </el-button>
@@ -210,6 +248,10 @@ onMounted(fetchList)
     </div>
 
     <div class="card">
+      <p class="sync-hint">
+        同步进来的快讯只含标题、摘要、来源与原文链接，默认是<strong>草稿</strong>，
+        审核并补充原创正文后再发布；请勿直接全文转载。
+      </p>
       <div class="filter-bar">
         <el-input
           v-model="query.keyword"
@@ -248,6 +290,17 @@ onMounted(fetchList)
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
         <el-table-column prop="slug" label="Slug" min-width="160" show-overflow-tooltip />
+        <el-table-column label="分类" width="90">
+          <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
+        </el-table-column>
+        <el-table-column label="来源" width="130" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag v-if="row.origin === 'sync'" size="small" type="info">
+              {{ row.source_name || '外部' }}
+            </el-tag>
+            <span v-else class="muted">原创</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="statusMeta(row.status).type" size="small">
@@ -303,5 +356,20 @@ onMounted(fetchList)
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.sync-hint {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--el-text-color-secondary);
+
+  strong {
+    color: var(--el-color-warning);
+  }
+}
+
+.muted {
+  color: var(--el-text-color-placeholder);
 }
 </style>

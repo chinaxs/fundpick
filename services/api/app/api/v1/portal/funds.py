@@ -10,6 +10,7 @@ from app.api.deps import RequestIdDep, SessionDep
 from app.schemas.common import ApiResponse, PageResult
 from app.schemas.fund import (
     FilterOptions,
+    FundCompareResult,
     FundDetail,
     FundListItem,
     FundQuery,
@@ -47,6 +48,25 @@ async def filter_options(
     return ApiResponse(data=data, request_id=request_id)
 
 
+@router.get(
+    "/compare",
+    summary="基金对比（2–3 只）",
+    response_model=ApiResponse[FundCompareResult],
+)
+async def compare_funds(
+    session: SessionDep,
+    request_id: RequestIdDep,
+    codes: Annotated[str, Query(min_length=1, max_length=60, description="基金代码，逗号分隔")],
+) -> ApiResponse[FundCompareResult]:
+    """按代码对比费率、风险与区间表现。
+
+    最多 3 只：再多横向表格就看不清了，也容易把不同份额当成不同产品。
+    """
+    code_list = [part.strip() for part in codes.split(",") if part.strip()]
+    data = await FundService(session).compare(code_list)
+    return ApiResponse(data=data, request_id=request_id)
+
+
 @router.get("/{code}", summary="基金详情", response_model=ApiResponse[FundDetail])
 async def fund_detail(
     code: str, session: SessionDep, request_id: RequestIdDep
@@ -56,7 +76,7 @@ async def fund_detail(
 
 
 @router.get(
-    "/{code}/metrics", summary="基金各区县指标", response_model=ApiResponse[list[MetricRead]]
+    "/{code}/metrics", summary="基金各区间指标", response_model=ApiResponse[list[MetricRead]]
 )
 async def fund_metrics(
     code: str, session: SessionDep, request_id: RequestIdDep
@@ -88,9 +108,7 @@ async def fund_holdings(
     code: str,
     session: SessionDep,
     request_id: RequestIdDep,
-    quarter: Annotated[
-        str | None, Query(description="季度，如 2025Q2；缺省取最新披露季度")
-    ] = None,
+    quarter: Annotated[str | None, Query(description="季度，如 2025Q2；缺省取最新披露季度")] = None,
 ) -> ApiResponse[HoldingsResult]:
     """季度重仓股明细（季报数据，占净值比例降序）。
 

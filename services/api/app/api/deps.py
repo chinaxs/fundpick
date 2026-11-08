@@ -17,12 +17,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenError, UnauthorizedError
-from app.core.security import decode_token
+from app.core.security import TokenScope, decode_token
 from app.db.session import get_session
 from app.models.staff import StaffUser as StaffUserModel
 from app.models.user import User
 from app.repositories.staff import StaffUserRepository
 from app.repositories.user import UserRepository
+from app.services.auth_sessions import validate_access_session
+from app.services.member_activity import touch
 
 # ---- 数据库会话 ----
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -40,7 +42,7 @@ bearer_scheme = HTTPBearer(auto_error=False, description="Bearer <access_token>"
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
 
 
-def _decode_access(credentials: BearerDep, scope: str) -> dict:
+def _decode_access(credentials: BearerDep, scope: TokenScope) -> dict:
     if credentials is None or not credentials.credentials:
         raise UnauthorizedError()
     try:
@@ -56,10 +58,16 @@ async def get_current_user(request: Request, session: SessionDep, credentials: B
     user = await UserRepository(session).get(int(payload["sub"]))
     if user is None or not user.is_active:
         raise UnauthorizedError("账号不存在或已被禁用")
+    if not await validate_access_session(session, payload, user.id, "portal"):
+        raise UnauthorizedError("登录会话已撤销或过期")
+
+    # 访问打卡：按天记录，内部节流；失败只记日志，不影响本次请求
+    await touch(user.id)
 
     # 供审计中间件识别操作人（中间件在 call_next 之后读取）
     request.state.user_id = user.id
     request.state.username = user.username
+    request.state.auth_session_id = payload.get("sid")
     return user
 
 
@@ -75,10 +83,13 @@ async def get_current_staff(
     staff = await StaffUserRepository(session).get(int(payload["sub"]))
     if staff is None or not staff.is_active:
         raise UnauthorizedError("账号不存在或已被禁用")
+    if not await validate_access_session(session, payload, staff.id, "staff"):
+        raise UnauthorizedError("登录会话已撤销或过期")
 
     # 供审计中间件识别操作人（中间件在 call_next 之后读取）
     request.state.user_id = staff.id
     request.state.username = staff.username
+    request.state.auth_session_id = payload.get("sid")
     return staff
 
 

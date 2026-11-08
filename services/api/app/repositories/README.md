@@ -19,3 +19,7 @@
 
 ## 依赖
 上游：`models`、`db` ｜ 下游：`services`
+
+`transaction.py` 查询模拟流水、精确日期净值、旧记录与会员写入锁；全部写操作由 service 提交事务。
+
+`trade_history.py` 在数据库按名称/代码、状态、方向与日期筛选，UNION后分页；只取当前页数据及其最新有效操作权限。

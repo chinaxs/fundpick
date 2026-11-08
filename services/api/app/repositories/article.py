@@ -24,7 +24,10 @@ class ArticleRepository(BaseRepository[Article]):
         return (await self.session.execute(stmt.limit(1))).scalar_one_or_none() is not None
 
     async def published(
-        self, params: PageParams, keyword: str | None = None
+        self,
+        params: PageParams,
+        keyword: str | None = None,
+        category: str | None = None,
     ) -> PageResult[Article]:
         stmt = self._base_stmt().where(
             Article.status == ArticleStatus.PUBLISHED,
@@ -34,6 +37,8 @@ class ArticleRepository(BaseRepository[Article]):
         if keyword:
             like = f"%{keyword}%"
             stmt = stmt.where(or_(Article.title.like(like), Article.summary.like(like)))
+        if category:
+            stmt = stmt.where(Article.category == category)
         stmt = stmt.order_by(Article.published_at.desc())
         return await self.paginate(stmt, params)
 

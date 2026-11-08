@@ -46,7 +46,15 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser.value = await authApi.me()
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken)
+    if (refreshToken) {
+      try {
+        await authApi.logout(refreshToken)
+      } catch {
+        // Local credentials are cleared even if the server session already expired.
+      }
+    }
     accessToken.value = ''
     currentUser.value = null
     localStorage.removeItem(STORAGE_KEYS.accessToken)

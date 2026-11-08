@@ -64,6 +64,14 @@ class Fund(TimestampMixin, SoftDeleteMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False, index=True, comment="基金简称")
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True, comment="基金全称")
+    # 搜索用的派生列：全拼与首字母，由 app.fund_search 生成。
+    # 不加索引——LIKE '%xx%' 用不到 B+ 树，索引只会拖慢写入。
+    name_pinyin: Mapped[str | None] = mapped_column(
+        String(120), nullable=True, comment="名称全拼（小写无分隔），供模糊搜索"
+    )
+    name_initials: Mapped[str | None] = mapped_column(
+        String(60), nullable=True, comment="名称拼音首字母，供模糊搜索"
+    )
 
     type: Mapped[FundType] = mapped_column(
         String(20), nullable=False, index=True, default=FundType.OTHER, comment="基金类型"

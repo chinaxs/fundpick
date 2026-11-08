@@ -28,10 +28,9 @@ async def batch_delete_users(
     payload: BatchIdsRequest,
     session: SessionDep,
     request_id: RequestIdDep,
-    user: SuperUser,
+    _admin: SuperUser,
 ) -> ApiResponse[BatchResult]:
-    # 操作者本人被排除，防止超管把自己删了把后台锁死
-    affected = await UserService(session).delete_many(payload.ids, exclude_id=user.id)
+    affected = await UserService(session).delete_many(payload.ids)
     return ApiResponse(data=BatchResult(affected=affected), request_id=request_id)
 
 

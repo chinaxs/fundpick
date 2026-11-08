@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { fromNow, formatDateTime } from '@project/shared'
 
 import { dashboardApi } from '@/api'
+import EngagementPanel from '@/components/dashboard/EngagementPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { DashboardOverview } from '@/types/admin'
 
@@ -199,6 +200,8 @@ function fmtNum(value: number): string {
     </el-row>
 
     <!-- 最近操作日志 -->
+    <EngagementPanel />
+
     <div class="card">
       <div class="card-head">
         <h3 class="section-title">最近操作</h3>

@@ -5,7 +5,7 @@ const route = useRoute()
 const items = [
   { label: '工作台概览', to: '/dashboard', icon: '▤' },
   { label: '我的关注', to: '/favorites', icon: '☆' },
-  { label: '模拟持仓', to: '/positions', icon: '◈' },
+  { label: '持仓与交易', to: '/positions', icon: '◈' },
 ]
 </script>
 
@@ -16,7 +16,11 @@ const items = [
       :key="item.to"
       :to="item.to"
       class="member-nav__item"
-      :class="{ 'member-nav__item--active': route.path === item.to }"
+      :class="{
+        'member-nav__item--active':
+          route.path === item.to ||
+          (item.to === '/positions' && route.path.startsWith('/portfolio/')),
+      }"
     >
       <span class="member-nav__icon" aria-hidden="true">{{ item.icon }}</span>
       {{ item.label }}

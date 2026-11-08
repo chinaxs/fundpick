@@ -18,9 +18,14 @@ from app.datasources.base import (
     FundHolding,
     FundProfile,
     FundSnapshot,
+    IndexCandle,
+    IndexDailyPoint,
+    IndexIntraday,
+    IndexQuote,
     NavPoint,
     RiskMetric,
 )
+from app.datasources.eastmoney import fetch_intraday
 
 # 数据源的中文周期 -> 内部周期
 PERIOD_MAP = {"近1年": "1y", "近3年": "3y", "近5年": "5y"}
@@ -204,12 +209,17 @@ class AkShareProvider:
             )
 
         holdings: list[FundHolding] = []
-        for quarter, stocks in by_quarter.items():
+        for _quarter, stocks in by_quarter.items():
             ranked = sorted(stocks.values(), key=lambda h: h.ratio or 0, reverse=True)
             for rank, item in enumerate(ranked, start=1):
                 item.rank = rank
                 holdings.append(item)
         return holdings
+
+    def transaction_fees(self, code: str) -> list[dict[str, str]]:
+        from app.datasources.fund_fees import fetch_fee_rules
+
+        return fetch_fee_rules(code)
 
     def risk_metrics(self, code: str) -> list[RiskMetric]:
         df: DataFrame = ak.fund_individual_analysis_xq(symbol=code)
@@ -225,6 +235,7 @@ class AkShareProvider:
                     volatility=_to_float(getattr(row, "年化波动率", None)),
                     sharpe=_to_float(getattr(row, "年化夏普比率", None)),
                     max_drawdown=_to_float(getattr(row, "最大回撤", None)),
+                    source="雪球基金分析",
                 )
             )
         return metrics
@@ -246,3 +257,99 @@ class AkShareProvider:
             )
         points.sort(key=lambda p: p.nav_date)
         return points
+
+    def index_quotes(self) -> list[IndexQuote]:
+        """沪深重要指数实时快照。
+
+        东财的这张表把上证/深证/中证/北证的核心指数放在一起（约 40 个），
+        单次请求即可；延迟通常在数秒到十几秒，非交易时段返回最近收盘值。
+        """
+        df: DataFrame = ak.stock_zh_index_spot_em(symbol="沪深重要指数")
+        quotes: list[IndexQuote] = []
+        for row in df.itertuples(index=False):
+            code = str(getattr(row, "代码", "")).strip()
+            if not code:
+                continue
+            quotes.append(
+                IndexQuote(
+                    code=code,
+                    name=str(getattr(row, "名称", "")).strip(),
+                    price=_to_float(getattr(row, "最新价", None)),
+                    change=_to_float(getattr(row, "涨跌额", None)),
+                    change_pct=_to_float(getattr(row, "涨跌幅", None)),
+                    open=_to_float(getattr(row, "今开", None)),
+                    high=_to_float(getattr(row, "最高", None)),
+                    low=_to_float(getattr(row, "最低", None)),
+                    prev_close=_to_float(getattr(row, "昨收", None)),
+                    amplitude=_to_float(getattr(row, "振幅", None)),
+                    volume=_to_float(getattr(row, "成交量", None)),
+                    amount=_to_float(getattr(row, "成交额", None)),
+                )
+            )
+        return quotes
+
+    def index_daily(self, symbol: str) -> list[IndexDailyPoint]:
+        """指数日线收盘序列，symbol 需带市场前缀（sh/sz/bj）。"""
+        df: DataFrame = ak.stock_zh_index_daily_em(symbol=symbol)
+        points: list[IndexDailyPoint] = []
+        for row in df.itertuples(index=False):
+            trade_date = _to_date(getattr(row, "date", None))
+            close = _to_float(getattr(row, "close", None))
+            if trade_date is None or close is None:
+                continue
+            points.append(IndexDailyPoint(trade_date=trade_date, close=close))
+        points.sort(key=lambda p: p.trade_date)
+        return points
+
+    def index_candles(self, symbol: str) -> list[IndexCandle]:
+        """指数日 K：开盘、最高、最低、收盘 + 量额。
+
+        东财这张表直接给了 OHLC，不用自己拼；停牌日可能缺字段，
+        缺关键价的整根丢掉，避免图上出现断点或 0 值。
+        """
+        df: DataFrame = ak.stock_zh_index_daily_em(symbol=symbol)
+        candles: list[IndexCandle] = []
+        for row in df.itertuples(index=False):
+            trade_date = _to_date(getattr(row, "date", None))
+            open_price = _to_float(getattr(row, "open", None))
+            high = _to_float(getattr(row, "high", None))
+            low = _to_float(getattr(row, "low", None))
+            close = _to_float(getattr(row, "close", None))
+            if (
+                trade_date is None
+                or open_price is None
+                or high is None
+                or low is None
+                or close is None
+            ):
+                continue
+            candles.append(
+                IndexCandle(
+                    trade_date=trade_date,
+                    open=open_price,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=_to_float(getattr(row, "volume", None)),
+                    amount=_to_float(getattr(row, "amount", None)),
+                )
+            )
+        candles.sort(key=lambda c: c.trade_date)
+        return candles
+
+    def index_intraday(self, symbol: str, ndays: int = 1) -> IndexIntraday | None:
+        """指数分时序列。
+
+        走东财 trends2 直连而不是 akshare 的分钟接口：后者按 17 个分页拉取，
+        实测 22 秒，详情页等不起。见 app/datasources/eastmoney.py 的说明。
+        """
+        return fetch_intraday(_secid(symbol), ndays=ndays)
+
+
+def _secid(symbol: str) -> str:
+    """sh000001 -> 1.000001；sz399001 / bj899050 -> 0.xxxxxx。
+
+    东财用 1 表示上交所，0 表示深交所与北交所。
+    """
+    prefix, code = symbol[:2], symbol[2:]
+    return f"{1 if prefix == 'sh' else 0}.{code}"

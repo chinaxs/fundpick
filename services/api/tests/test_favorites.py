@@ -5,10 +5,11 @@
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.db.session import async_session_factory
 from app.models.fund_favorite import FundFavorite
@@ -124,3 +125,41 @@ async def test_user_isolation(client: AsyncClient, member: dict) -> None:
                 await session.execute(delete(FundFavorite).where(FundFavorite.user_id == user.id))
                 await session.execute(delete(User).where(User.id == user.id))
                 await session.commit()
+
+
+async def test_recent_order_and_pagination_agree_when_timestamps_tie(
+    client: AsyncClient, member: dict
+) -> None:
+    """同秒关注以新增顺序倒序排列，概览、代码集合与分页清单一致。"""
+    headers = member["headers"]
+    for code in (FUND_CODE, "000001"):
+        response = await client.post(
+            "/api/v1/portal/favorites", json={"code": code}, headers=headers
+        )
+        assert response.status_code == 200, response.text
+    async with async_session_factory() as session:
+        user_id = (
+            await session.execute(select(User.id).where(User.username == member["username"]))
+        ).scalar_one()
+        await session.execute(
+            update(FundFavorite)
+            .where(FundFavorite.user_id == user_id)
+            .values(created_at=datetime(2026, 1, 1))
+        )
+        await session.commit()
+    first = (
+        await client.get(
+            "/api/v1/portal/favorites", params={"page": 1, "page_size": 1}, headers=headers
+        )
+    ).json()["data"]
+    second = (
+        await client.get(
+            "/api/v1/portal/favorites", params={"page": 2, "page_size": 1}, headers=headers
+        )
+    ).json()["data"]
+    codes = (await client.get("/api/v1/portal/favorites/codes", headers=headers)).json()["data"]
+    dashboard = (await client.get("/api/v1/portal/me/dashboard", headers=headers)).json()["data"]
+    assert first["items"][0]["code"] == "000001"
+    assert second["items"][0]["code"] == FUND_CODE
+    assert codes == ["000001", FUND_CODE]
+    assert [item["code"] for item in dashboard["recent_funds"]] == codes

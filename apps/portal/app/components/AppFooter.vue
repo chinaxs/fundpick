@@ -13,7 +13,7 @@ const config = useRuntimeConfig()
         </div>
         <p class="footer__desc">
           拾贝 FundPick ·
-          从全市场公募基金里，筛出值得看的那几只。所有指标基于公开净值计算，排名可追溯、口径可复算。
+          基金模拟交易、投资记账与持仓管理。筛选和对比基金，查看净值与收益，记录每一笔买卖。
         </p>
       </div>
 
@@ -42,6 +42,11 @@ const config = useRuntimeConfig()
     <div class="footer__legal">
       <div class="container footer__legal-inner">
         <span>© {{ new Date().getFullYear() }} 拾贝 FundPick</span>
+        <a href="/licenses/MIT.txt">MIT License</a>
+        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer"
+          >图表：TradingView Lightweight Charts™ · © 2026 TradingView, Inc.</a
+        >
+        <a href="/licenses/Apache-2.0.txt">图表许可证</a>
         <span class="footer__note">数据仅供参考，不构成投资建议</span>
       </div>
     </div>

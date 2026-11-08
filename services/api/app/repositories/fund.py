@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import aliased
 
+from app.fund_search import search_tokens, sector_code_for
 from app.models.fund import Fund
 from app.models.fund_company import FundCompany, FundManager
 from app.models.fund_holding import FundHolding
@@ -22,11 +23,36 @@ class FundRepository(BaseRepository[Fund]):
 
     # ---------------------------------------------------------- 内部
     @staticmethod
-    def _apply_filters(stmt: Select[Any], query: FundQuery) -> Select[Any]:
+    def _keyword_clause(token: str) -> Any:
+        """单个关键词的命中条件。
+
+        一次覆盖用户可能的四种输入：
+        代码（000001）、名称片段（华夏成长）、拼音/首字母（huaxia / hxcz）、
+        公司名（易方达）、主题词（半导体 → 映射成板块 key）。
+
+        代价是全表扫描：`%x%` 用不到索引。28k 行的规模下约几十毫秒，
+        比"精确前缀匹配"慢，但换来的是"想怎么输都能搜到"。
+        """
+        like = f"%{token}%"
+        latin = token.lower()
+        conditions = [
+            Fund.code.like(like),
+            Fund.name.like(like),
+            Fund.full_name.like(like),
+            Fund.name_pinyin.like(f"%{latin}%"),
+            Fund.name_initials.like(f"%{latin}%"),
+            Fund.company_id.in_(select(FundCompany.id).where(FundCompany.name.like(like))),
+        ]
+        sector = sector_code_for(token)
+        if sector:
+            conditions.append(Fund.sector == sector)
+        return or_(*conditions)
+
+    @classmethod
+    def _apply_filters(cls, stmt: Select[Any], query: FundQuery) -> Select[Any]:
         stmt = stmt.where(Fund.deleted_at.is_(None))
-        if query.keyword:
-            like = f"%{query.keyword}%"
-            stmt = stmt.where(or_(Fund.code.like(like), Fund.name.like(like)))
+        for token in search_tokens(query.keyword):
+            stmt = stmt.where(cls._keyword_clause(token))
         if query.type:
             stmt = stmt.where(Fund.type == query.type)
         if query.risk_level:
@@ -150,7 +176,7 @@ class FundRepository(BaseRepository[Fund]):
             .group_by(Fund.sector)
         )
         rows = (await self.session.execute(stmt)).all()
-        return {row[0]: int(row[1]) for row in rows}
+        return {str(sector): int(count) for sector, count in rows if sector is not None}
 
     async def type_distribution(self, period: str = "1y") -> list[tuple[str, int, float | None]]:
         """按基金类型统计数量与区间平均收益。"""

@@ -5,9 +5,11 @@ import { formatDateTime, type StaffUser } from '@project/shared'
 
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 
 /** 个人设置：资料只读展示（改资料走后台账号管理），密码可自助修改 */
 const authStore = useAuthStore()
+const router = useRouter()
 const profile = ref<StaffUser | null>(null)
 const profileLoading = ref(true)
 
@@ -57,8 +59,10 @@ async function handleChangePassword() {
       old_password: form.old_password,
       new_password: form.new_password,
     })
-    ElMessage.success('密码已修改，下次登录请使用新密码')
+    await authStore.logout()
+    ElMessage.success('密码已修改，请重新登录')
     formRef.value?.resetFields()
+    await router.replace({ name: 'login' })
   } finally {
     submitting.value = false
   }

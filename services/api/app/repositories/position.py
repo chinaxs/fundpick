@@ -27,9 +27,7 @@ class PositionRepository:
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def list_with_fund(
-        self, user_id: int, limit: int = 500
-    ) -> list[tuple[Any, ...]]:
+    async def list_with_fund(self, user_id: int, limit: int | None = None) -> list[tuple[Any, ...]]:
         stmt = (
             select(FundPosition, Fund)
             .join(Fund, Fund.id == FundPosition.fund_id)
@@ -39,17 +37,16 @@ class PositionRepository:
                 Fund.deleted_at.is_(None),
             )
             .order_by(FundPosition.bought_at.desc(), FundPosition.id.desc())
-            .limit(limit)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         return [tuple(r) for r in (await self.session.execute(stmt)).all()]
 
     async def find_fund(self, code: str) -> Fund | None:
         stmt = select(Fund).where(Fund.code == code, Fund.deleted_at.is_(None))
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def nav_on_or_before(
-        self, fund_id: int, bought_at: date
-    ) -> tuple[Decimal, date] | None:
+    async def nav_on_or_before(self, fund_id: int, bought_at: date) -> tuple[Decimal, date] | None:
         """买入日期当天或之前最近一个交易日的单位净值。
 
         基金按申请日净值确认；非交易日（周末/节假日）自然落到上一交易日。
@@ -69,7 +66,7 @@ class PositionRepository:
         self,
         user_id: int,
         fund_id: int,
-        amount: float,
+        amount: Decimal,
         cost_nav: Decimal,
         cost_nav_date: date | None,
         nav_source: str,

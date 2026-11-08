@@ -23,9 +23,34 @@ import type {
   UserUpdatePayload,
 } from '@project/shared'
 
-import type { FundListItem, FundQuery } from '@project/shared'
+import type {
+  ArticleVersionItem,
+  FeedbackItem,
+  FundListItem,
+  FundQuery,
+  MemberPortfolioSummary,
+  MemberSupportSummary,
+  PasswordResetLink,
+  PasswordResetRequestItem,
+} from '@project/shared'
 
-import type { AuditLogItem, AuditQuery, DashboardOverview, SystemInfo } from '@/types/admin'
+import type {
+  AuditLogItem,
+  AuditQuery,
+  DashboardOverview,
+  DataQualityReport,
+  EngagementSummary,
+  FeedbackQuery,
+  FeedbackRow,
+  FeedbackUpdatePayload,
+  OpsStatus,
+  SyncAlert,
+  SyncJob,
+  SyncSchedule,
+  SyncSchedulePayload,
+  SyncTriggerPayload,
+  SystemInfo,
+} from '@/types/admin'
 
 import { api } from './client'
 
@@ -36,6 +61,8 @@ const ADMIN = '/admin'
 export const authApi = {
   login: (payload: LoginPayload) => api.post<TokenResponse>(`${ADMIN}/auth/login`, payload),
   me: () => api.get<StaffUser>(`${ADMIN}/auth/me`),
+  logout: (refresh_token: string) =>
+    api.post<{ message: string }>(`${ADMIN}/auth/logout`, { refresh_token }),
   changePassword: (payload: ChangePasswordPayload) =>
     api.post<{ message: string }>(`${ADMIN}/auth/change-password`, payload),
 }
@@ -75,6 +102,9 @@ export const articleApi = {
     api.post<{ affected: number }>(`${ADMIN}/articles/batch-delete`, { ids }),
   batchStatus: (ids: number[], status: ArticleListItem['status']) =>
     api.post<{ affected: number }>(`${ADMIN}/articles/batch-status`, { ids, status }),
+  versions: (id: number) => api.get<ArticleVersionItem[]>(`${ADMIN}/articles/${id}/versions`),
+  restoreVersion: (id: number, version: number) =>
+    api.post<Article>(`${ADMIN}/articles/${id}/versions/${version}/restore`),
 }
 
 export const fundApi = {
@@ -83,11 +113,41 @@ export const fundApi = {
     api.get<{ fund_total: number; nav_rows: number; latest_nav_date: string | null }>(
       `${ADMIN}/funds/sync-status`,
     ),
+  dataQuality: (params?: { page?: number; page_size?: number; keyword?: string }) =>
+    api.get<DataQualityReport>(`${ADMIN}/funds/data-quality`, params),
+  triggerSync: (payload: SyncTriggerPayload) => api.post<SyncJob>(`${ADMIN}/funds/sync`, payload),
+  syncJobs: (limit = 20) => api.get<SyncJob[]>(`${ADMIN}/funds/sync/jobs`, { limit }),
+  syncJob: (id: number) => api.get<SyncJob>(`${ADMIN}/funds/sync/jobs/${id}`),
+  cancelSync: (id: number) => api.post<SyncJob>(`${ADMIN}/funds/sync/jobs/${id}/cancel`),
+  retrySync: (id: number) => api.post<SyncJob>(`${ADMIN}/funds/sync/jobs/${id}/retry`),
+  syncAlerts: (hours = 24) => api.get<SyncAlert[]>(`${ADMIN}/funds/sync/alerts`, { hours }),
+  syncSchedules: () => api.get<SyncSchedule[]>(`${ADMIN}/funds/sync/schedules`),
+  createSchedule: (payload: SyncSchedulePayload) =>
+    api.post<SyncSchedule>(`${ADMIN}/funds/sync/schedules`, payload),
+  updateSchedule: (id: number, payload: Partial<SyncSchedulePayload>) =>
+    api.patch<SyncSchedule>(`${ADMIN}/funds/sync/schedules/${id}`, payload),
+  removeSchedule: (id: number) => api.delete<null>(`${ADMIN}/funds/sync/schedules/${id}`),
+}
+
+/** 会员支持：反馈工单、密码重置与只读排查（仅超管） */
+export const supportApi = {
+  feedback: (params: FeedbackQuery) =>
+    api.get<PageResult<FeedbackRow>>(`${ADMIN}/support/feedback`, params),
+  updateFeedback: (id: number, payload: FeedbackUpdatePayload) =>
+    api.patch<FeedbackItem>(`${ADMIN}/support/feedback/${id}`, payload),
+  passwordResets: (params?: { status?: string; limit?: number }) =>
+    api.get<PasswordResetRequestItem[]>(`${ADMIN}/support/password-resets`, params),
+  createResetLink: (userId: number) =>
+    api.post<PasswordResetLink>(`${ADMIN}/support/members/${userId}/reset-link`),
+  member: (userId: number) => api.get<MemberSupportSummary>(`${ADMIN}/support/members/${userId}`),
+  memberPortfolio: (userId: number, limit = 200) =>
+    api.get<MemberPortfolioSummary>(`${ADMIN}/support/members/${userId}/portfolio`, { limit }),
 }
 
 /** 运营概览：一次拉全首页所需的聚合数据 */
 export const dashboardApi = {
   overview: () => api.get<DashboardOverview>(`${ADMIN}/dashboard`),
+  engagement: () => api.get<EngagementSummary>(`${ADMIN}/dashboard/engagement`),
 }
 
 /** 操作审计（仅超管） */
@@ -98,4 +158,5 @@ export const auditApi = {
 /** 系统信息（仅超管） */
 export const systemApi = {
   info: () => api.get<SystemInfo>(`${ADMIN}/system/info`),
+  health: () => api.get<OpsStatus>(`${ADMIN}/system/health`),
 }

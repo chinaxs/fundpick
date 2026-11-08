@@ -75,6 +75,14 @@ async function handleLogin() {
   }
 }
 
+const router = useRouter()
+
+/** 忘记密码单独成页：需要说明"客服核实后发链接"，弹窗里讲不清 */
+function goForgot() {
+  dialogVisible.value = false
+  void router.push('/forgot-password')
+}
+
 async function handleRegister() {
   const valid = await registerFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -158,6 +166,10 @@ watch(dialogVisible, (visible) => {
             登录
           </el-button>
         </el-form>
+
+        <p class="auth-switch">
+          <button type="button" class="auth-switch__link" @click="goForgot">忘记密码？</button>
+        </p>
 
         <p class="auth-switch">
           还没有账号？

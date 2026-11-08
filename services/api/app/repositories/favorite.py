@@ -28,7 +28,7 @@ class FavoriteRepository:
             select(Fund.code)
             .join(FundFavorite, FundFavorite.fund_id == Fund.id)
             .where(FundFavorite.user_id == user_id, Fund.deleted_at.is_(None))
-            .order_by(FundFavorite.created_at.desc())
+            .order_by(FundFavorite.created_at.desc(), FundFavorite.id.desc())
             .limit(limit)
         )
         return list((await self.session.execute(stmt)).scalars().all())
@@ -58,7 +58,7 @@ class FavoriteRepository:
 
         total = await self.count(user_id)
         stmt = (
-            base.order_by(FundFavorite.created_at.desc(), Fund.id.desc())
+            base.order_by(FundFavorite.created_at.desc(), FundFavorite.id.desc())
             .limit(page_size)
             .offset((page - 1) * page_size)
         )
@@ -79,7 +79,7 @@ class FavoriteRepository:
             .join(Fund, Fund.id == FundFavorite.fund_id)
             .outerjoin(metric, and_(metric.fund_id == Fund.id, metric.period == period))
             .where(FundFavorite.user_id == user_id, Fund.deleted_at.is_(None))
-            .order_by(FundFavorite.created_at.desc())
+            .order_by(FundFavorite.created_at.desc(), FundFavorite.id.desc())
             .limit(limit)
         )
         return [tuple(r) for r in (await self.session.execute(stmt)).all()]

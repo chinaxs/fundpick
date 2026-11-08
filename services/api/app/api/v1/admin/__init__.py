@@ -13,7 +13,18 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.admin import ai, articles, audit_logs, auth, dashboard, funds, staff, users
+from app.api.v1.admin import (
+    ai,
+    articles,
+    audit_logs,
+    auth,
+    dashboard,
+    funds,
+    staff,
+    support,
+    system,
+    users,
+)
 
 router = APIRouter(prefix="/admin")
 router.include_router(auth.router)
@@ -23,6 +34,8 @@ router.include_router(users.router)
 router.include_router(staff.router)
 router.include_router(articles.router)
 router.include_router(funds.router)
+router.include_router(support.router)
+router.include_router(system.router)
 router.include_router(ai.router)
 
 __all__ = ["router"]

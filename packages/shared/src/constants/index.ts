@@ -112,3 +112,27 @@ export const NAV_RANGE_MAP = {
 
 /** 净值曲线区间的展示顺序 */
 export const NAV_RANGE_ORDER = ['1m', '3m', '6m', '1y', '3y', 'all'] as const
+
+/** 资讯分类，后端 category 字段的展示文案（顺序即筛选栏顺序） */
+export const ARTICLE_CATEGORY_MAP: Record<string, { label: string }> = {
+  policy: { label: '政策' },
+  market: { label: '市场' },
+  company: { label: '公司' },
+  other: { label: '其他' },
+}
+
+/** 反馈分类与处理状态的展示文案 */
+export const FEEDBACK_CATEGORY_MAP: Record<string, string> = {
+  account: '账号',
+  data: '数据',
+  function: '功能建议',
+  bug: '故障',
+  other: '其他',
+}
+
+export const FEEDBACK_STATUS_MAP: Record<string, { label: string; tone: string }> = {
+  open: { label: '待处理', tone: 'warn' },
+  processing: { label: '处理中', tone: 'info' },
+  resolved: { label: '已解决', tone: 'ok' },
+  closed: { label: '已关闭', tone: 'muted' },
+}

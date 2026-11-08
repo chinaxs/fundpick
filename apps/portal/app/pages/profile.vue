@@ -61,7 +61,10 @@ async function savePassword() {
     pwdForm.old_password = ''
     pwdForm.new_password = ''
     pwdForm.confirm_password = ''
-    ElMessage.success('密码已更新，下次登录请使用新密码')
+    await logout()
+    resetFavorites()
+    ElMessage.success('密码已更新，请重新登录')
+    await router.push('/')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '修改失败，请检查原密码')
   } finally {
@@ -157,6 +160,7 @@ useSeoMeta({
             <NuxtLink to="/favorites" class="side__link">☆ 我的关注</NuxtLink>
             <NuxtLink to="/positions" class="side__link">◈ 模拟持仓</NuxtLink>
             <NuxtLink to="/funds" class="side__link">⌕ 基金筛选</NuxtLink>
+            <NuxtLink to="/feedback" class="side__link">✉ 反馈与帮助</NuxtLink>
           </nav>
         </aside>
 

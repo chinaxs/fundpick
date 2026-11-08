@@ -93,8 +93,11 @@ class PositionService:
     def _summarize(items: list[PositionItem]) -> PositionSummary:
         total_amount = sum(i.amount for i in items)
         valued = [i for i in items if i.market_value is not None]
-        if not valued:
-            return PositionSummary(count=len(items), total_amount=round(total_amount, 2))
+        # 缺失净值不等于市值为零；只有全部记录可估值时才给出组合总收益。
+        if not valued or len(valued) != len(items):
+            return PositionSummary(
+                count=len(items), total_amount=round(total_amount, 2), valued_count=len(valued)
+            )
         total_value = sum(i.market_value or 0 for i in valued)
         total_profit = round(total_value - total_amount, 2)
         return PositionSummary(

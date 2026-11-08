@@ -55,12 +55,28 @@ class PositionItem(BaseModel):
 
 
 class PositionSummary(BaseModel):
+    """完整估值才汇总总市值与收益，避免缺失净值被当成亏损。"""
+
     count: int = 0
     total_amount: float = Field(default=0, description="总投入成本（元）")
     total_market_value: float | None = Field(default=None, description="总市值（元）")
     total_profit: float | None = Field(default=None, description="总浮动盈亏（元）")
     profit_rate: float | None = Field(default=None, description="总浮动收益率（%）")
     valued_count: int = Field(default=0, description="已取得最新净值的持仓笔数")
+
+
+class PortfolioSummary(PositionSummary):
+    estimated_count: int = 0
+    calculated_count: int = 0
+    pending_count: int = 0
+    realized_profit: float = 0
+    total_dividends: float = 0
+    total_return: float | None = None
+    total_buy_amount: float = 0
+    total_sell_amount: float = 0
+    fees: float = 0
+    transaction_count: int = 0
+    legacy_count: int = 0
 
 
 class PositionListResponse(BaseModel):
@@ -126,6 +142,7 @@ class DashboardResponse(BaseModel):
     return_buckets: list[DashboardDistributionItem] = Field(default_factory=list)
     top_funds: list[DashboardFundItem] = Field(default_factory=list)
     recent_funds: list[DashboardFundItem] = Field(default_factory=list)
+    portfolio_summary: PortfolioSummary = Field(default_factory=PortfolioSummary)
     position_summary: PositionSummary = Field(
         default_factory=PositionSummary, description="模拟持仓概览（明细在 /me/positions）"
     )

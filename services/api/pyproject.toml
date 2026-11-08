@@ -1,7 +1,9 @@
 [project]
 name = "study-api"
 version = "0.1.0"
-description = "project_study 后端服务（FastAPI + SQLAlchemy 2.x 异步）"
+description = "FundPick：基金模拟交易、持仓管理与基金筛选 API"
+license = "MIT"
+keywords = ["fund", "paper-trading", "portfolio-tracker", "personal-finance", "fastapi"]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -19,6 +21,7 @@ dependencies = [
     "pydantic>=2.14.0",
     "pydantic-settings>=2.16.0",
     "pyjwt>=2.10.0",
+    "pypinyin>=0.55.0",
     "python-multipart>=0.0.20",
     "sqlalchemy[asyncio]>=2.1.0",
     "uvicorn[standard]>=0.54.0",
@@ -40,7 +43,7 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["alembic/versions"]
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
@@ -77,6 +80,7 @@ disable_error_code = ["return-value", "arg-type", "assignment"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+python_files = ["test_*.py", "acceptance_*.py"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra"

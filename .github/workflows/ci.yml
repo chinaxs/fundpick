@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
 
 concurrency:
@@ -10,6 +10,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    name: 发布文件与历史密钥检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/check-secrets.py --history
+
   web:
     name: 前端（lint / type-check / build）
     runs-on: ubuntu-latest
@@ -39,9 +48,36 @@ jobs:
       - name: 构建
         run: pnpm build
 
+      - name: 持仓工具表单契约检查
+        run: node apps/portal/scripts/acceptance-flow-form.mjs
+
   api:
     name: 后端（ruff / mypy / pytest）
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: project_study_test
+          MYSQL_USER: study_app
+          MYSQL_PASSWORD: ci-study-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ustudy_app -pci-study-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: test
+      DEBUG: 'false'
+      SECRET_KEY: test-only-ci-signing-key-with-more-than-32-characters
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_USER: study_app
+      MYSQL_PASSWORD: ci-study-password
+      MYSQL_DB: project_study_test
     defaults:
       run:
         working-directory: services/api
@@ -62,6 +98,15 @@ jobs:
 
       - name: Type check
         run: uv run mypy app
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      - name: Seed deterministic test data
+        run: uv run python -m scripts.seed_test_data
+
+      - name: Verify public administrator initializer is idempotent
+        run: uv run python -m scripts.seed
 
       - name: Test
         run: uv run pytest -q

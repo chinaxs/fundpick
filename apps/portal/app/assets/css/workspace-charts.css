@@ -1,0 +1,98 @@
+.workspace .grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.workspace .bars {
+  display: grid;
+  gap: 12px;
+}
+.workspace .bar {
+  display: grid;
+  grid-template-columns: 80px 1fr 88px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.workspace .bar__track {
+  height: 8px;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.workspace .bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 4px;
+  opacity: 0.75;
+}
+.workspace .bar__value {
+  text-align: right;
+}
+.workspace .bar__value small {
+  display: block;
+}
+.workspace .sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace .sector-tag {
+  display: inline-flex;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.workspace .sector-tag:hover {
+  color: var(--brand);
+  border-color: var(--brand);
+}
+.workspace .histogram {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 158px;
+}
+.workspace .histogram__col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+.workspace .histogram__count {
+  font-size: 11px;
+  color: var(--muted);
+}
+.workspace .histogram__bar-wrap {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 38px;
+}
+.workspace .histogram__bar {
+  width: 100%;
+  background: var(--down);
+  border-radius: 4px 4px 0 0;
+  opacity: 0.75;
+}
+.workspace .histogram__bar--up {
+  background: var(--up);
+}
+.workspace .histogram__label {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .workspace .grid2 {
+    grid-template-columns: 1fr;
+  }
+}

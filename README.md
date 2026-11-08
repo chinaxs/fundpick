@@ -1,178 +1,161 @@
-# 拾贝 FundPick
+# 拾贝 FundPick｜开源基金模拟交易与持仓管理
 
-**基金筛选与分析工具**：从全市场公募基金里挑出值得看的那几只。
-Vue 后台管理 + Nuxt 门户 + FastAPI 服务，pnpm workspace 组成 monorepo，数据库 MySQL。
+**基金模拟交易、投资记账、持仓管理、基金筛选与收益分析工具。** 基于 Nuxt 4、Vue 3、FastAPI 和 MySQL，可自行部署。
 
-## 有什么
+FundPick is an open-source, self-hosted **fund paper trading and portfolio tracker** for Chinese mutual funds. Track buy/sell records, historical NAV dates, fees and portfolio returns; screen and compare funds in one place.
 
-- **筛选排行**：28,277 只公募基金，按区间收益、最大回撤、夏普比率、规模多维度筛选排序
-- **基金详情**：净值曲线（6 档时间区间）、区间指标、公司与经理信息
-- **我的关注**：注册后可收藏基金，随时回来对比
-- **市场概览**：正收益占比、类型分化、收益分布等聚合数据
+[快速开始](#快速开始) · [功能介绍](#功能介绍) · [交易规则](docs/trading-flow.md) · [参与贡献](CONTRIBUTING.md) · [MIT License](LICENSE)
 
-数据口径为 T+1 官方净值。公募基金没有实时净值，盘中估值是持仓倒推的模拟值——本站不把它包装成实时。
-详见 [基金模块文档](docs/fund-module.md)。
+## 适合用来做什么
 
-## 技术栈
+- **记录真实平台交易**：将支付宝、天天基金等平台发生的买卖记在一个账本中，统一观察持仓与收益。
+- **基金模拟交易与练习**：使用真实基金净值记录模拟买卖，理解费用、确认时间和持有期收益。本站不连接交易通道，不执行真实申购、赎回或资金划转。
+- **个人基金研究**：按类型、主题、区间收益、最大回撤、夏普等条件筛选基金，关注与对比候选产品。
+- **二次开发**：基于前后端分离架构扩展自己的基金管理、投资复盘或个人金融工具。
 
-| 模块 | 目录 | 技术 |
-| --- | --- | --- |
-| 后台管理 | `apps/admin` | Vue 3.5 · Vite 8 · TypeScript · Element Plus · Pinia · Vue Router |
-| 门户网站 | `apps/portal` | Nuxt 4 · SSR · TypeScript（SEO 友好） |
-| 后端服务 | `services/api` | FastAPI · SQLAlchemy 2.x（异步）· Alembic · Pydantic v2 |
-| 共享层 | `packages/shared` | 前后端共用的类型定义、常量、工具函数 |
-| 数据接入 | `services/api/app/datasources` | 数据源抽象（当前 AkShare，可替换） |
-| 数据库 | MySQL | 库名 `test_study`，utf8mb4 |
+## 功能介绍
 
-## 目录结构
+| 功能 | 说明 |
+| --- | --- |
+| 基金筛选与对比 | 代码、名称、拼音搜索，类型/主题/风险筛选，基金详情、净值曲线与最多3只基金对比 |
+| 基金模拟交易 | 买入填金额、卖出填份额，记录下单时间，自动查询对应日期净值与可用费率 |
+| 持仓管理与收益 | 加仓、卖出、已清仓记录，持仓成本、市值、持有收益和累计收益 |
+| 交易流水 | 按基金名称/代码、方向、状态和日期筛选，分页、撤销、纠错作废与删除 |
+| 更多持仓操作 | 添加已有持仓、现金分红、红利再投、拆分和基金转换，按需展开 |
+| 自选基金与工作台 | 关注、持仓标记、工作台概览与快捷买入入口 |
+| 行情与资讯 | 指数行情、分时/K线，公开资讯来源、数据时间与延迟提示 |
+| 运营后台 | 基金数据采集、任务进度、数据质量、会员支持、内容版本与操作审计 |
+| AI扩展基础 | 保留数据来源、确认状态与修正链；内容助手默认关闭，普通功能无需模型密钥 |
 
-```
-project_study/
-├── apps/
-│   ├── admin/                  # 后台管理（SPA，端口 5174）
-│   │   ├── src/
-│   │   │   ├── api/            # 接口封装（axios 实例 + 模块）
-│   │   │   ├── layouts/        # 布局（侧边栏 + 顶栏）
-│   │   │   ├── router/         # 路由与守卫
-│   │   │   ├── stores/         # Pinia 状态
-│   │   │   ├── styles/         # 全局样式与设计变量
-│   │   │   ├── views/          # 页面
-│   │   │   ├── App.vue
-│   │   │   └── main.ts
-│   │   ├── vite.config.ts
-│   │   └── package.json
-│   └── portal/                 # 门户网站（SSR，端口 3000）
-│       ├── app/
-│       │   ├── components/     # 组件（Header / Footer / 文章卡片）
-│       │   ├── composables/    # 数据获取封装
-│       │   ├── layouts/        # 布局
-│       │   ├── pages/          # 路由页面（文件路由）
-│       │   ├── assets/css/
-│       │   ├── app.vue
-│       │   └── error.vue
-│       ├── nuxt.config.ts
-│       └── package.json
-├── packages/
-│   └── shared/                 # @project/shared
-│       └── src/
-│           ├── types/          # 与后端 schema 对齐的接口类型
-│           ├── constants/      # 常量、字典、存储键
-│           └── utils/          # 纯函数工具
-├── services/
-│   └── api/                    # FastAPI
-│       ├── app/
-│       │   ├── api/v1/             # 路由：portal（门户·匿名）/ admin（后台·登录）/ common（探活）
-│       │   ├── core/               # 配置、安全、日志、异常
-│       │   ├── db/                 # 引擎、会话、ORM 基类
-│       │   ├── models/             # SQLAlchemy 模型
-│       │   ├── schemas/            # Pydantic 模型
-│       │   ├── repositories/       # 数据访问层
-│       │   ├── services/           # 业务逻辑层
-│       │   └── main.py
-│       ├── alembic/                # 数据库迁移
-│       ├── tests/
-│       ├── pyproject.toml
-│       └── Makefile
-├── docs/                       # 架构 / 规范文档
-├── pnpm-workspace.yaml
-└── package.json
-```
+### 模拟交易的数据规则
+
+“模拟”表示不执行实际交易，日期和数据仍需要认真处理：
+
+- 普通境内开放式基金按**北京时间15:00**与证券交易日历判断净值所属日；15:00整及以后顺延。
+- 周末、节假日与未知日历范围分别处理，不拿“最近公布的净值”替代应有日期的净值。
+- 净值或费率尚未取得时保留待处理，正常等待后自动入账；自动计算不会冒充已与平台对账。
+- 实际平台费用、份额和到账结果可以按平台信息核对；未知费用不自动填成零。
+- 转换保留转出、转入两侧份额与金额，校验资金守恒和后续持仓，避免超卖和重复记账。
+
+详见[交易流程与边界](docs/trading-flow.md)。自动结果可能与平台折扣或确认精度不同，以平台实际结果为准。
 
 ## 快速开始
 
-前置要求：Node ≥ 22.18、pnpm ≥ 9、Python ≥ 3.12、uv、MySQL ≥ 8。
+要求：Node.js 22.21+（推荐`.nvmrc`版本）、pnpm 9、Python 3.12+、[uv](https://docs.astral.sh/uv/)。下面使用Docker Compose启动独立MySQL 8.4，也可以接入自己准备的MySQL。
+
+### 1. 安装依赖并生成本地配置
+
+克隆本仓库后，在项目根目录执行：
 
 ```bash
-# 1. 安装前端依赖（会自动链接 workspace 包）
-pnpm install
+nvm use  # 使用nvm时；否则自行安装.nvmrc指定的Node版本
+pnpm install --frozen-lockfile
+pnpm setup:dev
+```
 
-# 2. 构建共享包（apps 依赖它的产物）
+`setup:dev`生成根目录`.env`与`services/api/.env`，包含随机数据库密码和JWT签名密钥，默认数据库为`fundpick`、端口为`3307`。文件不会进入Git，密钥不会输出到终端；已有配置时会停止，避免覆盖你的环境。
+
+已有MySQL时，可手动复制`services/api/.env.example`为`.env`，填写已创建的专用账号、空数据库、真实密码和随机`SECRET_KEY`，直接跳到第3步。不要用`root`运行应用；`scripts/init_db.sql`只负责建库，不含固定账号密码。
+
+### 2. 启动开发数据库
+
+```bash
+docker compose -f compose.dev.yml up -d --wait
+```
+
+此配置只启动本机开发数据库并保留数据卷，不启动API或前端。正式部署参考[部署说明](docs/deployment.md)，不要将开发配置直接暴露到公网。
+
+### 3. 迁移并初始化管理员
+
+```bash
 pnpm build:shared
-
-# 3. 配置后端环境变量
-cp services/api/.env.example services/api/.env   # 按需修改 MySQL 账号密码
-
-# 4. 安装后端依赖 + 初始化数据库
 cd services/api
-uv sync
-make migrate     # 执行迁移建表
-make seed        # 写入管理员账号与示例文章
-cd ../..
-
-# 5. 启动
-pnpm dev         # 同时启动 admin(5174) + portal(3000)
-# 或分别启动
-pnpm dev:admin
-pnpm dev:portal
-pnpm dev:api     # FastAPI: 8000
+uv sync --frozen
+make migrate
+make seed
 ```
 
-访问：
+`make seed`交互要求你设置管理员密码，不回显、不写日志，**没有默认管理员密码**。默认用户名为`admin`；重复运行会保留已有账号的密码和权限。无人值守部署可通过环境变量`INITIAL_ADMIN_USERNAME`和`INITIAL_ADMIN_PASSWORD`传入，不要把真实值写入公开命令示例或Git。
 
-- 后台管理：<http://localhost:5174>（初始账号 `admin` / `Admin@123456`）
-- 门户网站：<http://localhost:3000>
-- 门户接口文档：<http://127.0.0.1:8000/docs/portal>（9 个路径，匿名可访问）
-- 后台接口文档：<http://127.0.0.1:8000/docs/admin>（13 个路径，需登录）
-- 全量接口文档：<http://127.0.0.1:8000/docs>（24 个路径，排查跨端问题时用）
+默认不会创建虚构基金、测试会员或新闻。需要一篇明确标注的演示草稿时，可运行`uv run python -m scripts.seed --demo-content`。
 
-## 常用命令
+### 4. 启动API和前端
 
-| 命令 | 说明 |
-| --- | --- |
-| `pnpm dev` | 并行启动两个前端 |
-| `pnpm dev:api` | 启动 FastAPI（热重载） |
-| `pnpm build` | 按依赖顺序构建全部前端 |
-| `pnpm lint` / `pnpm type-check` | 代码检查 / 类型检查 |
-| `pnpm format` | 全仓格式化 |
-| `cd services/api && make dev` | 后端开发服务器 |
-| `make revision m="说明"` | 生成 Alembic 迁移 |
-| `make test` | 后端测试 |
-
-## 约定
-
-- **接口统一响应**：`{ code, message, data, request_id }`，`code=0` 为成功。详见 [docs/api.md](docs/api.md)。
-- **鉴权**：JWT Bearer，access token 放 `Authorization` 头；401 由前端拦截器统一跳登录。
-- **分页**：统一 `page` / `page_size`，返回 `{ items, total, page, page_size }`。
-- **分层**：`router → service → repository → model`，路由不写业务逻辑，仓储不写业务规则。
-- **类型共享**：后端改 schema 时同步 `packages/shared/src/types/api.ts`。
-
-## 文档导航
-
-**动手写代码前，建议按这个顺序读：**
-
-| 文档 | 什么时候看 |
-| --- | --- |
-| [基金模块](docs/fund-module.md) | 理解基金数据模型、采集链路、接口与页面 |
-| [代码规范](docs/CONVENTIONS.md) | 写第一行业务代码之前（含分层规则、评审清单、屎山预警） |
-| [模块地图](docs/MODULES.md) | 不确定功能该放哪儿时 |
-| [复用优先](docs/REUSE.md) | 准备造轮子/引第三方库之前 |
-| [架构说明](docs/architecture.md) | 想理解整体数据流 |
-| [接口约定](docs/api.md) | 前后端联调、改契约 |
-| [开发规范](docs/development.md) | 新增模块/页面、迁移、提交规范 |
-| [AI 能力](docs/ai.md) | 接入大模型、加工具、加工作流 |
-| [架构决策](docs/adr/) | 想质疑"为什么这么选" |
-
-**每个模块目录下都有 README**，说明职责边界与扩展方式，例如：
-
-- 后端：[api](services/api/app/api/README.md) · [services](services/api/app/services/README.md) · [repositories](services/api/app/repositories/README.md) · [models](services/api/app/models/README.md) · [schemas](services/api/app/schemas/README.md) · [core](services/api/app/core/README.md) · [db](services/api/app/db/README.md) · [ai](services/api/app/ai/README.md) · [alembic](services/api/alembic/README.md)
-- 后台：[api](apps/admin/src/api/README.md) · [stores](apps/admin/src/stores/README.md) · [views](apps/admin/src/views/README.md) · [layouts](apps/admin/src/layouts/README.md) · [router](apps/admin/src/router/README.md) · [styles](apps/admin/src/styles/README.md)
-- 门户：[pages](apps/portal/app/pages/README.md) · [components](apps/portal/app/components/README.md) · [composables](apps/portal/app/composables/README.md)
-- 共享：[shared](packages/shared/src/README.md)
-
-## AI 能力（预留）
-
-服务端已预置 LangChain / LangGraph / deepagents 三层能力，默认关闭，不影响启动：
+在第一个终端，保持位于`services/api`：
 
 ```bash
-# services/api/.env
-AI_ENABLED=true
-OPENAI_API_KEY=sk-xxx
-OPENAI_BASE_URL=https://api.deepseek.com/v1   # 任意 OpenAI 兼容端点
-AI_MODEL=deepseek-chat
+make dev
 ```
 
-- 智能体对话：`POST /api/v1/admin/ai/chat`（内容助手，可查文章、给选题建议）
-- 确定性工作流：`POST /api/v1/admin/ai/review`（规则校验 + 模型建议）
-- 状态查询：`GET /api/v1/admin/ai/status`
+在第二个终端，回到项目根目录：
 
-设计原则、加工具/加流程的方法见 [docs/ai.md](docs/ai.md)。
+```bash
+pnpm dev
+```
+
+| 服务 | 地址 |
+| --- | --- |
+| 官网与基金工作台 | http://localhost:3000 |
+| 管理后台 | http://localhost:5174 |
+| 后端API文档 | http://127.0.0.1:8000/docs |
+| 门户API文档 | http://127.0.0.1:8000/docs/portal |
+| 后台API文档 | http://127.0.0.1:8000/docs/admin |
+
+后台使用刚设置的账号密码；官网会员独立注册，两套账号互不通用。
+
+### 5. 导入公开基金数据
+
+首次安装是空数据库。后台登录后进入“采集监控”，按需启动基础数据同步，或执行：
+
+```bash
+cd services/api
+uv run python -m scripts.sync_funds --mode quick
+```
+
+数据量、接口可用性和采集耗时取决于上游，不附带整库行情。请遵守来源站的访问限制。风险指标、历史净值等采集模式见[基金模块](docs/fund-module.md)。
+
+## 技术与目录
+
+```text
+apps/portal/       Nuxt 4官网：基金筛选、模拟交易、工作台
+apps/admin/        Vue 3 + Element Plus管理后台
+services/api/      FastAPI + SQLAlchemy异步API、采集与Alembic迁移
+packages/shared/   TypeScript共享类型、常量和工具
+scripts/           开发配置与发布检查
+.github/workflows/ 独立数据库CI
+```
+
+| 操作 | 命令 |
+| --- | --- |
+| 两个前端开发服务 | `pnpm dev` |
+| 后端热重载 | `pnpm dev:api` |
+| 类型检查 | `pnpm type-check` |
+| 生产构建 | `pnpm build` |
+| 后端质量检查 | `cd services/api && make lint && make typecheck` |
+| 密钥与历史检查 | `python3 scripts/check-secrets.py --history` |
+
+集成测试会写数据，**请使用独立测试库**，不要在正在使用的持仓数据库上运行。步骤见[测试说明](docs/testing.md)。
+
+## 数据、隐私与已知限制
+
+- 本项目不提供基金交易执行，不推荐买卖具体产品、不承诺收益；历史表现不代表未来结果。
+- 公开数据可能延迟、缺失或变更。特殊基金及平台规则不能一律套用15:00规则，页面保留来源与待核对状态。
+- 代码开源许可不包含上游基金数据、行情或资讯的再分发授权。部署及商业用途需单独确认来源条件，见[数据源说明](docs/adr/0006-fund-data-source.md)。
+- 只发布代码与必要示例，不发布真实会员、交易记录、会话、日志、API密钥或数据库备份。
+- 当前为早期版本。生产环境真实备份恢复演练尚未完成，部署者需要自行验证，见[版本记录](CHANGELOG.md)。
+
+## 贡献与文档
+
+欢迎通过Issue反馈基金模拟交易、持仓计算、基金筛选与部署问题，也欢迎提交Pull Request。请先阅读[贡献指南](CONTRIBUTING.md)；安全问题使用[安全报告渠道](SECURITY.md)。
+
+[架构说明](docs/architecture.md) · [模块地图](docs/MODULES.md) · [交易流程](docs/trading-flow.md) · [基金模块](docs/fund-module.md) · [测试](docs/testing.md) · [部署](docs/deployment.md) · [项目代办](docs/TODO.md)
+
+## License
+
+FundPick原创代码采用[MIT License](LICENSE)。第三方依赖保留各自许可证；图表使用[TradingView Lightweight Charts™](https://www.tradingview.com/)，详见[第三方声明](THIRD_PARTY_NOTICES.md)。
+
+## 搜索关键词 / Keywords
+
+基金、基金模拟交易、模拟买卖、基金持仓管理、投资记账、基金净值、基金筛选、收益分析、个人投资管理。
+
+Mutual funds, fund paper trading, simulated trading, portfolio tracker, investment tracker, personal finance, self-hosted, Nuxt, Vue, FastAPI, AkShare.

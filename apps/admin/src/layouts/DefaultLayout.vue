@@ -80,8 +80,8 @@ async function handleLogout() {
   }).catch(() => false)
   if (!confirmed) return
 
-  authStore.logout()
-  router.push({ name: 'login' })
+  await authStore.logout()
+  await router.push({ name: 'login' })
 }
 </script>
 

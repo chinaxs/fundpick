@@ -2,10 +2,10 @@
   "name": "project-study",
   "version": "0.1.0",
   "private": true,
-  "description": "project_study monorepo：Vue 后台 + Nuxt 门户 + FastAPI 服务",
+  "description": "拾贝 FundPick：开源基金模拟交易、基金持仓管理、投资记账、基金筛选与收益分析工具。Open-source fund paper trading and portfolio tracker.",
   "packageManager": "pnpm@9.9.0",
   "engines": {
-    "node": "^22.18.0 || >=24.12.0",
+    "node": "^22.21.0 || >=24.12.0",
     "pnpm": ">=9"
   },
   "scripts": {
@@ -23,7 +23,8 @@
     "test": "pnpm -r --if-present test",
     "format": "prettier --write \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "setup:dev": "node scripts/setup-dev.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",
@@ -45,5 +46,21 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "基金",
+    "模拟交易",
+    "基金模拟交易",
+    "持仓管理",
+    "投资记账",
+    "基金筛选",
+    "fund",
+    "paper-trading",
+    "portfolio-tracker",
+    "personal-finance",
+    "nuxt",
+    "vue",
+    "fastapi"
+  ]
 }

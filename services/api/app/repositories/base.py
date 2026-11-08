@@ -1,8 +1,9 @@
 """通用仓储层：把 CRUD 细节收在这里，service 只管业务。"""
 
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import Base
@@ -41,14 +42,11 @@ class BaseRepository(Generic[ModelT]):
         """按 ID 批量更新，返回受影响行数（软删除行不参与）。"""
         if not ids or not values:
             return 0
-        stmt = (
-            self.model.__table__.update()
-            .where(self.model.id.in_(ids))  # type: ignore[attr-defined]
-            .values(**values)
-        )
-        if hasattr(self.model, "deleted_at"):
-            stmt = stmt.where(self.model.deleted_at.is_(None))
-        result = await self.session.execute(stmt)
+        model: Any = self.model
+        stmt = update(model).where(model.id.in_(ids)).values(**values)
+        if hasattr(model, "deleted_at"):
+            stmt = stmt.where(model.deleted_at.is_(None))
+        result = cast(CursorResult[Any], await self.session.execute(stmt))
         return int(result.rowcount or 0)
 
     async def get_by(self, **filters: Any) -> ModelT | None:

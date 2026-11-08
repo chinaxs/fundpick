@@ -1,11 +1,16 @@
 """后台 - 文章管理接口。"""
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
 
 from app.api.deps import RequestIdDep, SessionDep, StaffUser
 from app.models.article import ArticleStatus
-from app.schemas.article import ArticleCreate, ArticleListItem, ArticleRead, ArticleUpdate
+from app.schemas.article import (
+    ArticleCreate,
+    ArticleListItem,
+    ArticleRead,
+    ArticleUpdate,
+    ArticleVersionRead,
+)
 from app.schemas.common import (
     ApiResponse,
     BatchIdsRequest,
@@ -15,6 +20,7 @@ from app.schemas.common import (
     PageResult,
 )
 from app.services.article import ArticleService
+from app.services.article_version import ArticleVersionService
 
 router = APIRouter(prefix="/articles", tags=["后台 · 内容"])
 
@@ -45,8 +51,6 @@ async def batch_update_status(
     return ApiResponse(data=BatchResult(affected=affected), request_id=request_id)
 
 
-
-
 @router.get("", summary="文章列表", response_model=ApiResponse[PageResult[ArticleListItem]])
 async def list_articles(
     session: SessionDep,
@@ -73,9 +77,9 @@ async def list_articles(
 
 @router.post("", summary="创建文章", response_model=ApiResponse[ArticleRead], status_code=201)
 async def create_article(
-    payload: ArticleCreate, session: SessionDep, request_id: RequestIdDep, _: StaffUser
+    payload: ArticleCreate, session: SessionDep, request_id: RequestIdDep, staff: StaffUser
 ) -> ApiResponse[ArticleRead]:
-    article = await ArticleService(session).create(payload)
+    article = await ArticleService(session).create(payload, staff.username)
     return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
 
 
@@ -93,9 +97,45 @@ async def update_article(
     payload: ArticleUpdate,
     session: SessionDep,
     request_id: RequestIdDep,
-    _: StaffUser,
+    staff: StaffUser,
 ) -> ApiResponse[ArticleRead]:
-    article = await ArticleService(session).update(article_id, payload)
+    article = await ArticleService(session).update(article_id, payload, staff.username)
+    return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
+
+
+@router.get(
+    "/{article_id}/versions",
+    summary="文章历史版本",
+    response_model=ApiResponse[list[ArticleVersionRead]],
+)
+async def list_article_versions(
+    article_id: int,
+    session: SessionDep,
+    request_id: RequestIdDep,
+    _: StaffUser,
+) -> ApiResponse[list[ArticleVersionRead]]:
+    """每次保存都会追加快照，用于回答发布前改了什么。"""
+    rows = await ArticleVersionService(session).list(article_id)
+    return ApiResponse(
+        data=[ArticleVersionRead.model_validate(row) for row in rows],
+        request_id=request_id,
+    )
+
+
+@router.post(
+    "/{article_id}/versions/{version}/restore",
+    summary="恢复到历史版本",
+    response_model=ApiResponse[ArticleRead],
+)
+async def restore_article_version(
+    article_id: int,
+    version: int,
+    session: SessionDep,
+    request_id: RequestIdDep,
+    staff: StaffUser,
+) -> ApiResponse[ArticleRead]:
+    """恢复不会删除历史：回滚内容后再追加一条新版本。"""
+    article = await ArticleService(session).restore_version(article_id, version, staff.username)
     return ApiResponse(data=ArticleRead.model_validate(article), request_id=request_id)
 
 

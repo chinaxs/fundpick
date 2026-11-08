@@ -8,12 +8,15 @@ from collections.abc import AsyncIterator
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
+from app.core.security import hash_password
 from app.db.session import async_session_factory
 from app.models.audit_log import AuditLog
+from app.models.auth_session import AuthSession
 from app.models.staff import StaffUser
 from app.models.user import User
+from app.schemas.staff import StaffUpdate
 
 PASSWORD = "Admin@123456"
 STAFF_PASSWORD = "Staff@12345"
@@ -49,6 +52,11 @@ async def staff_account(client: AsyncClient, admin_headers: dict[str, str]) -> A
 
     async with async_session_factory() as session:
         await session.execute(delete(AuditLog).where(AuditLog.username == name))
+        await session.execute(
+            delete(AuthSession).where(
+                AuthSession.scope == "staff", AuthSession.subject_id == staff_id
+            )
+        )
         await session.execute(delete(StaffUser).where(StaffUser.id == staff_id))
         await session.commit()
 
@@ -138,7 +146,7 @@ async def test_audit_logs_requires_superuser(client: AsyncClient, staff_account:
     assert resp.status_code == 403
 
 
-async def test_user_batch_delete_protects_self(
+async def test_staff_batch_delete_protects_self(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:
     """批量删除员工账号不能删掉操作者本人。"""
@@ -146,9 +154,8 @@ async def test_user_batch_delete_protects_self(
 
     async with async_session_factory() as session:
         admin_id = (
-            (await session.execute(sa.select(StaffUser.id).where(StaffUser.username == "admin")))
-            .scalar_one()
-        )
+            await session.execute(sa.select(StaffUser.id).where(StaffUser.username == "admin"))
+        ).scalar_one()
 
     resp = await client.post(
         "/api/v1/admin/staff/batch-delete",
@@ -163,24 +170,151 @@ async def test_user_batch_delete_protects_self(
         assert admin is not None and admin.deleted_at is None
 
 
-async def test_staff_crud_requires_superuser(
-    client: AsyncClient, staff_account: dict
+async def test_staff_self_delete_and_self_demotion_are_rejected(
+    client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:
-    """普通员工不能管理员工账号。"""
-    resp = await client.get(
-        "/api/v1/admin/staff", headers=staff_account["headers"]
+    async with async_session_factory() as session:
+        admin_id = await session.scalar(select(StaffUser.id).where(StaffUser.username == "admin"))
+
+    deleted = await client.delete(f"/api/v1/admin/staff/{admin_id}", headers=admin_headers)
+    demoted = await client.patch(
+        f"/api/v1/admin/staff/{admin_id}",
+        json={"is_superuser": False},
+        headers=admin_headers,
     )
+    assert deleted.status_code == 409
+    assert demoted.status_code == 409
+
+    async with async_session_factory() as session:
+        admin = await session.get(StaffUser, admin_id)
+        assert admin is not None and admin.deleted_at is None and admin.is_superuser
+
+
+async def test_last_active_superuser_cannot_be_demoted_or_deleted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.exceptions import ConflictError
+    from app.services.staff import StaffService
+
+    async with async_session_factory() as session:
+        admin_id = await session.scalar(select(StaffUser.id).where(StaffUser.username == "admin"))
+        service = StaffService(session)
+
+        async def no_other_admin(*_excluded_ids):
+            return 0
+
+        monkeypatch.setattr(service, "_active_superuser_count", no_other_admin)
+        with pytest.raises(ConflictError, match="至少保留一名"):
+            await service.update(
+                admin_id,
+                StaffUpdate(is_superuser=False),
+                actor_id=admin_id + 1,
+            )
+        await session.rollback()
+
+        with pytest.raises(ConflictError, match="至少保留一名"):
+            await service.delete(admin_id, actor_id=admin_id + 1)
+        await session.rollback()
+
+
+async def test_member_batch_delete_keeps_cross_table_id_collision(client: AsyncClient) -> None:
+    password = "Collision@123"
+    username = f"collision_{uuid.uuid4().hex[:10]}"
+    async with async_session_factory() as session:
+        max_user = await session.scalar(select(func.max(User.id))) or 0
+        max_staff = await session.scalar(select(func.max(StaffUser.id))) or 0
+        shared_id = max(max_user, max_staff) + 1
+        session.add(
+            User(
+                id=shared_id,
+                username=username,
+                hashed_password=hash_password(password),
+            )
+        )
+        session.add(
+            StaffUser(
+                id=shared_id,
+                username=username,
+                hashed_password=hash_password(password),
+                is_active=True,
+                is_superuser=True,
+            )
+        )
+        await session.commit()
+
+    try:
+        headers = await _login(client, username, password)
+        response = await client.post(
+            "/api/v1/admin/users/batch-delete",
+            json={"ids": [shared_id]},
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["affected"] == 1
+        async with async_session_factory() as session:
+            member = await session.get(User, shared_id)
+            staff = await session.get(StaffUser, shared_id)
+            assert member is not None and member.deleted_at is not None
+            assert staff is not None and staff.deleted_at is None
+    finally:
+        async with async_session_factory() as session:
+            await session.execute(delete(User).where(User.id == shared_id))
+            await session.execute(delete(StaffUser).where(StaffUser.id == shared_id))
+            await session.commit()
+
+
+async def test_staff_crud_requires_superuser(client: AsyncClient, staff_account: dict) -> None:
+    """普通员工不能管理员工账号。"""
+    resp = await client.get("/api/v1/admin/staff", headers=staff_account["headers"])
     assert resp.status_code == 403
 
 
-async def test_staff_token_cannot_access_portal(
+async def test_staff_token_cannot_access_portal(client: AsyncClient, staff_account: dict) -> None:
+    """员工令牌 scope=staff，不能当门户会员用。"""
+    resp = await client.get("/api/v1/portal/auth/me", headers=staff_account["headers"])
+    assert resp.status_code == 401
+
+
+async def test_admin_refresh_rotation_and_logout_revoke_session(client: AsyncClient) -> None:
+    login = await client.post(
+        "/api/v1/admin/auth/login",
+        json={"username": "admin", "password": PASSWORD},
+    )
+    assert login.status_code == 200, login.text
+    first = login.json()["data"]
+    refreshed = await client.post(
+        "/api/v1/admin/auth/refresh", json={"refresh_token": first["refresh_token"]}
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    second = refreshed.json()["data"]
+    assert second["refresh_token"] != first["refresh_token"]
+
+    replay = await client.post(
+        "/api/v1/admin/auth/refresh", json={"refresh_token": first["refresh_token"]}
+    )
+    assert replay.status_code == 401
+    logged_out = await client.post(
+        "/api/v1/admin/auth/logout", json={"refresh_token": second["refresh_token"]}
+    )
+    assert logged_out.status_code == 200
+    response = await client.get(
+        "/api/v1/admin/auth/me",
+        headers={"Authorization": f"Bearer {second['access_token']}"},
+    )
+    assert response.status_code == 401
+
+
+async def test_password_change_revokes_staff_session(
     client: AsyncClient, staff_account: dict
 ) -> None:
-    """员工令牌 scope=staff，不能当门户会员用。"""
-    resp = await client.get(
-        "/api/v1/portal/auth/me", headers=staff_account["headers"]
+    response = await client.post(
+        "/api/v1/admin/auth/change-password",
+        json={"old_password": STAFF_PASSWORD, "new_password": "Staff@67890"},
+        headers=staff_account["headers"],
     )
-    assert resp.status_code == 401
+    assert response.status_code == 200, response.text
+    me = await client.get("/api/v1/admin/auth/me", headers=staff_account["headers"])
+    assert me.status_code == 401
 
 
 async def test_article_batch_status_and_delete(
@@ -224,7 +358,5 @@ async def test_article_batch_status_and_delete(
 
 async def test_batch_requires_staff(client: AsyncClient) -> None:
     """匿名调用批量接口应 401，防越权。"""
-    resp = await client.post(
-        "/api/v1/admin/articles/batch-delete", json={"ids": [1]}
-    )
+    resp = await client.post("/api/v1/admin/articles/batch-delete", json={"ids": [1]})
     assert resp.status_code == 401

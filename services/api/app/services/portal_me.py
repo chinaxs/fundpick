@@ -21,6 +21,7 @@ from app.models.fund_favorite import FundFavorite
 from app.models.fund_position import FundPosition
 from app.models.user import User
 from app.repositories.favorite import FavoriteRepository
+from app.repositories.transaction import TransactionRepository
 from app.repositories.user import UserRepository
 from app.schemas.portal_me import (
     DashboardDistributionItem,
@@ -30,8 +31,10 @@ from app.schemas.portal_me import (
     ProfileUpdateRequest,
 )
 from app.services.auth import AuthService
+from app.services.auth_sessions import revoke_all_for_account
 from app.services.fund import RISK_LABELS, TYPE_LABELS
 from app.services.portal_position import PositionService
+from app.services.portfolio import PortfolioService
 
 # 收益分桶（与全市场分布保持一致口径）
 RETURN_BUCKETS: list[tuple[str, float | None, float | None]] = [
@@ -101,12 +104,10 @@ class PortalMeService:
         """
         if not verify_password(password, user.hashed_password):
             raise UnauthorizedError("密码不正确")
-        await self.session.execute(
-            sql_delete(FundFavorite).where(FundFavorite.user_id == user.id)
-        )
-        await self.session.execute(
-            sql_delete(FundPosition).where(FundPosition.user_id == user.id)
-        )
+        await TransactionRepository(self.session).remove_for_user(user.id)
+        await self.session.execute(sql_delete(FundFavorite).where(FundFavorite.user_id == user.id))
+        await self.session.execute(sql_delete(FundPosition).where(FundPosition.user_id == user.id))
+        await revoke_all_for_account(self.session, "portal", user.id)
         await self.users.delete(user, soft=True)
         await self.session.commit()
 
@@ -188,16 +189,12 @@ class PortalMeService:
 
         risk_order = ["low", "mid_low", "mid", "mid_high", "high"]
         risk_distribution = [
-            DashboardDistributionItem(
-                key=key, label=RISK_LABELS.get(key, key), count=by_risk[key]
-            )
+            DashboardDistributionItem(key=key, label=RISK_LABELS.get(key, key), count=by_risk[key])
             for key in risk_order
             if by_risk.get(key)
         ]
         sector_distribution = [
-            DashboardDistributionItem(
-                key=key, label=SECTOR_LABELS.get(key, key), count=count
-            )
+            DashboardDistributionItem(key=key, label=SECTOR_LABELS.get(key, key), count=count)
             for key, count in sorted(by_sector.items(), key=lambda x: -x[1])[:8]
         ]
         return_buckets = [
@@ -212,6 +209,7 @@ class PortalMeService:
         )
         # 工作台只带持仓概览，明细与完整收藏各自有独立页面/接口
         _items, position_summary = await PositionService(self.session).overview(user_id)
+        portfolio = await PortfolioService(self.session).overview(user_id)
         return DashboardResponse(
             period=period,
             summary=summary,
@@ -222,4 +220,5 @@ class PortalMeService:
             top_funds=by_return[:5],
             recent_funds=items[:5],  # rows 已按关注时间倒序
             position_summary=position_summary,
+            portfolio_summary=portfolio.summary,
         )

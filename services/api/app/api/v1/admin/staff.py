@@ -84,7 +84,7 @@ async def update_staff(
     request_id: RequestIdDep,
     _: SuperUser,
 ) -> ApiResponse[StaffRead]:
-    staff = await StaffService(session).update(staff_id, payload)
+    staff = await StaffService(session).update(staff_id, payload, actor_id=_.id)
     return ApiResponse(data=StaffRead.model_validate(staff), request_id=request_id)
 
 
@@ -92,5 +92,5 @@ async def update_staff(
 async def delete_staff(
     staff_id: int, session: SessionDep, request_id: RequestIdDep, _: SuperUser
 ) -> ApiResponse[IdResponse]:
-    await StaffService(session).delete(staff_id)
+    await StaffService(session).delete(staff_id, actor_id=_.id)
     return ApiResponse(data=IdResponse(id=staff_id), request_id=request_id)

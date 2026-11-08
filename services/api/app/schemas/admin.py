@@ -94,3 +94,27 @@ class SystemInfo(BaseModel):
     started_at: datetime
     uptime_seconds: int
     tables: list[TableStat] = Field(default_factory=list)
+
+
+class EngagementPoint(BaseModel):
+    """按日活跃趋势的一个点。"""
+
+    day: str
+    users: int
+
+
+class EngagementSummary(BaseModel):
+    """运营效果指标（已排除测试帐号）。"""
+
+    total_users: int
+    new_7d: int
+    active_7d: int
+    active_30d: int
+    returning_7d: int
+    retention_cohort: int = Field(description="7–14 天前注册的会员数")
+    retention_7d: int = Field(description="其中最近 7 天回来过的数量")
+    users_with_favorite: int
+    users_with_transaction: int
+    daily_active: list[EngagementPoint] = Field(default_factory=list)
+    excluded_note: str = Field(description="测试帐号过滤口径说明")
+    definitions: str = Field(description="指标定义说明")

@@ -32,7 +32,9 @@ from app.core.logging import get_logger, setup_logging
 from app.datasources import RANK_CATEGORIES, get_provider
 from app.datasources.base import FundSnapshot
 from app.db.session import async_session_factory, dispose_engine
+from app.fund_search import pinyin_index
 from app.fund_sectors import SECTOR_LABELS, detect_sector
+from app.job_progress import JobProgress, SyncCancelled, summarize_failures
 from app.models import (
     Fund,
     FundCompany,
@@ -42,10 +44,13 @@ from app.models import (
     FundType,
     RiskLevel,
 )
+from app.sync_modes import SYNC_MODES
 
 logger = get_logger("sync_funds")
 BATCH = 500
 STARTED_AT = time.time()
+# 后台触发时才有 job_id；CLI 直接运行时所有进度上报都是空操作
+PROGRESS = JobProgress(None)
 _EMPTY_TOKENS = {"", "---", "--", "nan", "NaN", "NaT", "None", "null"}
 
 
@@ -242,16 +247,20 @@ def _load_manager_rows() -> list[dict[str, Any]]:
 async def sync_funds(session: AsyncSession) -> int:
     """基金基础列表。"""
     basics = await asyncio.to_thread(_load_fund_basics)
-    payload = [
-        {
-            "code": b["code"],
-            "name": b["name"],
-            "type": map_fund_type(b["raw_type"]),
-            "full_name": None,
-        }
-        for b in basics
-    ]
-    total = await upsert(session, Fund, payload, ["name", "type"])
+    payload = []
+    for b in basics:
+        full, initials = pinyin_index(b["name"])
+        payload.append(
+            {
+                "code": b["code"],
+                "name": b["name"],
+                "type": map_fund_type(b["raw_type"]),
+                "full_name": None,
+                "name_pinyin": full,
+                "name_initials": initials,
+            }
+        )
+    total = await upsert(session, Fund, payload, ["name", "type", "name_pinyin", "name_initials"])
     logger.info("[基金] 基础信息 %d 条（%s）", total, _elapsed())
     return total
 
@@ -261,7 +270,7 @@ def _load_fund_basics() -> list[dict[str, str]]:
     return [{"code": f.code, "name": f.name, "raw_type": f.raw_type} for f in provider.list_funds()]
 
 
-async def sync_snapshots(session: AsyncSession) -> int:
+async def sync_snapshots(session: AsyncSession, codes: list[str] | None = None) -> int:
     """各类型排行快照：补齐最新净值、费率，并写入区间收益指标。"""
     provider = get_provider()
     snapshots: list[FundSnapshot] = []
@@ -275,6 +284,11 @@ async def sync_snapshots(session: AsyncSession) -> int:
 
     if not snapshots:
         return 0
+    if codes:
+        selected = set(codes)
+        snapshots = [snapshot for snapshot in snapshots if snapshot.code in selected]
+        if not snapshots:
+            return 0
 
     code_to_id = dict((await session.execute(select(Fund.code, Fund.id))).all())
 
@@ -325,49 +339,65 @@ async def sync_snapshots(session: AsyncSession) -> int:
     return updated
 
 
-async def sync_risks(session: AsyncSession, limit: int | None) -> int:
-    """风险指标：逐只拉取，写入 1y/3y/5y 的波动率、夏普、最大回撤。"""
-    # 优先补给"有区间收益数据"的基金；同时跳过已采过的，便于分批续跑
-    done = select(FundMetric.fund_id).where(FundMetric.sharpe.is_not(None))
-    funds = (
-        await session.execute(
-            select(Fund.id, Fund.code)
-            .join(FundMetric, FundMetric.fund_id == Fund.id)
-            .where(
-                Fund.deleted_at.is_(None),
-                FundMetric.period == "1y",
-                Fund.id.not_in(done),
-            )
-            .distinct()
-            .order_by(Fund.id)
+async def sync_risks(
+    session: AsyncSession, limit: int | None, codes: list[str] | None = None
+) -> int:
+    """风险指标：新增与最新净值基准日不一致的 1y/3y/5y 快照。"""
+    stmt = (
+        select(Fund.id, Fund.code, Fund.latest_nav_date)
+        .join(FundMetric, FundMetric.fund_id == Fund.id)
+        .where(
+            Fund.deleted_at.is_(None),
+            FundMetric.period == "1y",
+            Fund.latest_nav_date.is_not(None),
+            FundMetric.risk_nav_date.is_distinct_from(Fund.latest_nav_date),
         )
-    ).all()
+        .distinct()
+        .order_by(Fund.id)
+    )
+    if codes:
+        stmt = stmt.where(Fund.code.in_(codes))
+    funds = (await session.execute(stmt)).all()
     if limit:
         funds = funds[:limit]
 
     provider = get_provider()
+    PROGRESS.begin("risk", len(funds))
     done = 0
-    for idx, (fund_id, code) in enumerate(funds, start=1):
+    for idx, (fund_id, code, nav_date) in enumerate(funds, start=1):
+        PROGRESS.checkpoint()
         try:
             rows = await asyncio.to_thread(provider.risk_metrics, code)
         except Exception as exc:
             logger.debug("[风险] %s 失败：%s", code, exc)
+            PROGRESS.fail(code, str(exc))
             continue
 
+        by_period = {row.period: row for row in rows}
         payload = []
-        for r in rows:
+        for period in ("1y", "3y", "5y"):
+            row = by_period.get(period)
             payload.append(
                 {
                     "fund_id": fund_id,
-                    "period": r.period,
-                    "volatility": r.volatility,
-                    "sharpe": r.sharpe,
-                    "max_drawdown": r.max_drawdown,
+                    "period": period,
+                    "risk_nav_date": nav_date,
+                    "risk_source": (
+                        row.source if row and row.source else f"{provider.name} 风险指标"
+                    ),
+                    "volatility": row.volatility if row else None,
+                    "sharpe": row.sharpe if row else None,
+                    "max_drawdown": row.max_drawdown if row else None,
                 }
             )
-        if payload:
-            await upsert(session, FundMetric, payload, ["volatility", "sharpe", "max_drawdown"])
-            done += 1
+        await upsert(
+            session,
+            FundMetric,
+            payload,
+            ["risk_nav_date", "risk_source", "volatility", "sharpe", "max_drawdown"],
+        )
+        done += 1
+        PROGRESS.advance(ok=1)
 
         if idx % 100 == 0:
             logger.info("[风险] %d/%d 已处理（%s）", idx, len(funds), _elapsed())
@@ -387,9 +417,7 @@ async def sync_details(session: AsyncSession, limit: int | None, codes: list[str
 
     if codes:
         funds = (
-            await session.execute(
-                select(Fund.id, Fund.code).where(Fund.code.in_(codes))
-            )
+            await session.execute(select(Fund.id, Fund.code).where(Fund.code.in_(codes)))
         ).all()
     else:
         # 逐只请求（约 0.3 秒/只），按近一年收益降序，优先补用户最常看到的头部基金。
@@ -412,14 +440,18 @@ async def sync_details(session: AsyncSession, limit: int | None, codes: list[str
         funds = (await session.execute(stmt)).all()
 
     provider = get_provider()
+    PROGRESS.begin("detail", len(funds))
     updated = 0
     for idx, (fund_id, code) in enumerate(funds, start=1):
+        PROGRESS.checkpoint()
         try:
             profile = await asyncio.to_thread(provider.fund_profile, code)
         except Exception as exc:
             logger.debug("[档案] %s 失败：%s", code, exc)
+            PROGRESS.fail(code, str(exc))
             continue
         if profile is None:
+            PROGRESS.advance(skipped=1)
             continue
 
         values: dict[str, Any] = {}
@@ -439,6 +471,7 @@ async def sync_details(session: AsyncSession, limit: int | None, codes: list[str
 
         await session.execute(update(Fund).where(Fund.id == fund_id).values(**values))
         updated += 1
+        PROGRESS.advance(ok=1)
         if idx % 50 == 0:
             await session.commit()
             logger.info("[档案] %d/%d 已处理（%s）", idx, len(funds), _elapsed())
@@ -449,26 +482,34 @@ async def sync_details(session: AsyncSession, limit: int | None, codes: list[str
     return updated
 
 
-async def sync_navs(session: AsyncSession, limit: int | None) -> int:
+async def sync_navs(
+    session: AsyncSession, limit: int | None, codes: list[str] | None = None
+) -> int:
     """净值序列：只拉取已有指标、按浏览次数排序的前 N 只，避免全量拉爆。
 
     全市场 1 万只 × 数千条 ≈ 千万级行，全量拉取需要数小时；
     详情页需要曲线时再按需补齐更划算。
     """
     stmt = select(Fund.id, Fund.code).where(Fund.deleted_at.is_(None)).order_by(Fund.id)
+    if codes:
+        stmt = stmt.where(Fund.code.in_(codes))
     if limit:
         stmt = stmt.limit(limit)
     funds = (await session.execute(stmt)).all()
 
     provider = get_provider()
+    PROGRESS.begin("navs", len(funds))
     total = 0
     for idx, (fund_id, code) in enumerate(funds, start=1):
+        PROGRESS.checkpoint()
         try:
             points = await asyncio.to_thread(provider.nav_history, code)
         except Exception as exc:
             logger.debug("[净值] %s 失败：%s", code, exc)
+            PROGRESS.fail(code, str(exc))
             continue
         if not points:
+            PROGRESS.advance(skipped=1)
             continue
 
         rows = [
@@ -481,6 +522,7 @@ async def sync_navs(session: AsyncSession, limit: int | None) -> int:
             for p in points
         ]
         total += await upsert(session, FundNav, rows, ["unit_nav", "daily_return"])
+        PROGRESS.advance(ok=1)
         if idx % 50 == 0:
             logger.info("[净值] %d/%d（%s）", idx, len(funds), _elapsed())
 
@@ -511,14 +553,18 @@ async def sync_holdings(session: AsyncSession, limit: int | None, codes: list[st
         funds = (await session.execute(stmt)).all()
 
     provider = get_provider()
+    PROGRESS.begin("holdings", len(funds))
     total = 0
     for idx, (fund_id, code) in enumerate(funds, start=1):
+        PROGRESS.checkpoint()
         try:
             holdings = await asyncio.to_thread(provider.fund_holdings, code, year)
         except Exception as exc:
             logger.debug("[持仓] %s 失败：%s", code, exc)
+            PROGRESS.fail(code, str(exc))
             continue
         if not holdings:
+            PROGRESS.advance(skipped=1)
             continue
 
         rows = [
@@ -540,6 +586,7 @@ async def sync_holdings(session: AsyncSession, limit: int | None, codes: list[st
             rows,
             ["stock_name", "rank", "ratio", "shares", "market_value"],
         )
+        PROGRESS.advance(ok=1)
         if idx % 50 == 0:
             logger.info("[持仓] %d/%d（%s）", idx, len(funds), _elapsed())
         await asyncio.sleep(0.1)  # 重仓接口较重，限速防反爬
@@ -712,7 +759,12 @@ async def derive_risk_levels(session: AsyncSession) -> int:
             {"risk": risk.value, "type": fund_type.value},
         )
         affected += result.rowcount or 0
-        logger.info("[风险等级] %s -> %s，更新 %d 行", fund_type.value, risk.value, result.rowcount or 0)
+        logger.info(
+            "[风险等级] %s -> %s，更新 %d 行",
+            fund_type.value,
+            risk.value,
+            result.rowcount or 0,
+        )
     await session.commit()
     remaining = (
         await session.execute(
@@ -772,37 +824,122 @@ async def derive_sectors(session: AsyncSession, force: bool = False) -> int:
 
 
 # ---------------------------------------------------------------- 入口
+async def backfill_pinyin(session: AsyncSession, force: bool = False) -> int:
+    """回填搜索用的拼音列。
+
+    只处理 name_pinyin 为空的行（--force 时全量重算），
+    这样日常加新基金时跑一次也是"补差量"，不会把 28k 行全部重写。
+    """
+    stmt = select(Fund.id, Fund.name, Fund.name_pinyin)
+    if not force:
+        stmt = stmt.where(Fund.name_pinyin.is_(None))
+    rows = (await session.execute(stmt)).all()
+
+    total = 0
+    for start in range(0, len(rows), 500):
+        chunk = rows[start : start + 500]
+        payload = []
+        for fund_id, name, _ in chunk:
+            full, initials = pinyin_index(name or "")
+            payload.append({"id": fund_id, "name_pinyin": full, "name_initials": initials})
+        await session.execute(update(Fund), payload)
+        total += len(payload)
+        logger.info("[拼音] 已回填 %d / %d", total, len(rows))
+
+    await session.commit()
+    logger.info("[拼音] 完成，共 %d 条（%s）", total, _elapsed())
+    return total
+
+
 async def run(mode: str, limit: int | None, codes: list[str] | None, force: bool = False) -> None:
+    async def step(name: str, factory: Any, *, self_report: bool = False) -> Any:
+        """跑一个阶段并上报进度。
+
+        `self_report=True` 表示该函数自己逐条上报（见 sync_risks / sync_navs），
+        这里就不再按返回值累加，避免同一批条目被计两次。
+        """
+        PROGRESS.begin(name)
+        PROGRESS.checkpoint()
+        outcome = await factory()
+        if not self_report:
+            PROGRESS.advance(ok=outcome if isinstance(outcome, int) else 1)
+        return outcome
+
     async with async_session_factory() as session:
         if mode in {"quick", "all"}:
-            company_ids = await sync_companies(session)
-            await sync_funds(session)
-            manager_ids = await sync_managers(session, company_ids)
-            await link_managers(session, manager_ids)
-            await link_companies(session)
-            await sync_snapshots(session)
+            company_ids = await step("company", lambda: sync_companies(session))
+            await step("fund", lambda: sync_funds(session))
+            manager_ids = await step("manager", lambda: sync_managers(session, company_ids))
+            await step("manager-link", lambda: link_managers(session, manager_ids))
+            await step("company-link", lambda: link_companies(session))
+            await step("snapshot", lambda: sync_snapshots(session))
+        if mode == "snapshot":
+            await step("snapshot", lambda: sync_snapshots(session, codes))
         if mode in {"risk", "all"}:
-            await sync_risks(session, limit)
+            await step("risk", lambda: sync_risks(session, limit, codes), self_report=True)
         if mode == "risk-level":
-            await derive_risk_levels(session)
+            await step("risk-level", lambda: derive_risk_levels(session))
         if mode == "sector":
-            await derive_sectors(session, force=force)
+            await step("sector", lambda: derive_sectors(session, force=force))
+        if mode in {"pinyin", "all"}:
+            await step("pinyin", lambda: backfill_pinyin(session, force=force))
         if mode in {"scale", "all"}:
-            await sync_scale(session)
+            await step("scale", lambda: sync_scale(session))
         if mode in {"detail", "all"}:
-            await sync_details(session, limit, codes)
+            await step("detail", lambda: sync_details(session, limit, codes), self_report=True)
         if mode in {"navs", "all"}:
-            await sync_navs(session, limit)
+            await step("navs", lambda: sync_navs(session, limit, codes), self_report=True)
         if mode in {"holdings", "all"}:
-            await sync_holdings(session, limit, codes)
+            await step("holdings", lambda: sync_holdings(session, limit, codes), self_report=True)
+    if mode in {"quick", "snapshot", "navs", "all"}:
+        from app.services.automatic_trade import reconcile_after_sync
+
+        await step("reconcile", reconcile_after_sync)
+    PROGRESS.begin("done")
     await dispose_engine()
+
+
+def _write_job_result(job_id: int | None, status: str, started: float, message: str) -> None:
+    """后台触发模式下写结果文件，供 API 回填 sync_jobs 状态。
+
+    刻意不直接写数据库：采集脚本保持纯 CLI，且 API 进程重启后
+    仍能从文件恢复任务结果，不会出现永远 running 的僵尸任务。
+    计数一并写入，避免进程结束后进度文件被清理导致统计丢失。
+    """
+    if job_id is None:
+        return
+    import json
+    from pathlib import Path
+
+    log_dir = Path(__file__).resolve().parents[1] / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": status,
+        "finished_at": datetime.now().isoformat(timespec="seconds"),
+        "duration_ms": int((time.time() - started) * 1000),
+        "message": message[:500],
+        "counts": {
+            "phase": PROGRESS.phase,
+            "total": PROGRESS.total,
+            "succeeded": PROGRESS.succeeded,
+            "failed": PROGRESS.failed,
+            "skipped": PROGRESS.skipped,
+            "failures": PROGRESS.failures,
+        },
+    }
+    try:
+        (log_dir / f"sync_job_{job_id}.result.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError as exc:  # pragma: no cover - 磁盘异常不应影响采集结果
+        logger.warning("[任务] 写入结果文件失败: %s", exc)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="基金数据同步")
     parser.add_argument(
         "--mode",
-        choices=["quick", "risk", "risk-level", "sector", "scale", "detail", "navs", "holdings", "all"],
+        choices=SYNC_MODES,
         default="quick",
         help=(
             "quick=基础数据；risk=风险指标；risk-level=按类型推导风险等级；"
@@ -821,13 +958,41 @@ def main() -> None:
         default=None,
         help="只处理指定基金代码，逗号分隔（如 021180,110022，调试用）",
     )
+    parser.add_argument(
+        "--job-id",
+        type=int,
+        default=None,
+        help="后台触发时传入的任务 ID，用于写结果文件（CLI 手动执行时无需传）",
+    )
     args = parser.parse_args()
     codes = [c.strip() for c in args.codes.split(",")] if args.codes else None
 
+    global PROGRESS
+    PROGRESS = JobProgress(args.job_id)
+
     setup_logging()
-    logger.info("开始同步，模式=%s limit=%s codes=%s force=%s", args.mode, args.limit, codes, args.force)
-    asyncio.run(run(args.mode, args.limit, codes, args.force))
+    logger.info(
+        "开始同步，模式=%s limit=%s codes=%s force=%s job=%s",
+        args.mode,
+        args.limit,
+        codes,
+        args.force,
+        args.job_id,
+    )
+    try:
+        asyncio.run(run(args.mode, args.limit, codes, args.force))
+    except SyncCancelled:
+        logger.info("收到取消请求，本轮采集已停止（%s）", _elapsed())
+        _write_job_result(args.job_id, "cancelled", STARTED_AT, "已按请求取消")
+        return
+    except Exception as exc:
+        logger.exception("同步失败: %s", exc)
+        _write_job_result(args.job_id, "failed", STARTED_AT, str(exc))
+        raise SystemExit(1) from exc
     logger.info("同步结束，耗时 %s", _elapsed())
+    status = "partial_success" if PROGRESS.failed else "success"
+    message = summarize_failures(PROGRESS.failures) or "同步完成"
+    _write_job_result(args.job_id, status, STARTED_AT, message)
 
 
 if __name__ == "__main__":

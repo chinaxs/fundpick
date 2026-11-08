@@ -164,3 +164,25 @@ def build_tag_graph():
 | 回答里没有调用工具 | 提示词未要求、工具未登记 | 检查 `ALL_TOOLS` 与 `prompts/assistant.md` |
 | 多轮对话失忆 | `thread_id` 每次变了 | 前端保存并复用同一个 `thread_id` |
 | 超时 | 模型慢 / `AI_TIMEOUT` 太小 | 调大超时，或换更快的模型 |
+
+
+## 账本数据（只读，带来源）
+
+`app/services/portfolio_provenance.py` 把会员账本整理成"可被模型引用"的结构，
+每条记录都带 `confidence`，模型不得自行升级可信度：
+
+| confidence | 含义 | 能否当作成交事实 |
+| --- | --- | --- |
+| `receipt` | 平台回执确认（份额/净值/费用来自回执） | 可以 |
+| `estimated` / `calculated` | 系统按公开净值与费率推算 | 不可以，需说明"预计" |
+| `import` | 用户导入的历史记录 | 需说明"用户导入，未对账" |
+| `pending` | 已提交、尚无回执的申请 | 不可以，不能计入已实现收益 |
+| `legacy` | 迁移前的旧估算持仓 | 不可以 |
+
+入口有两个，走同一份实现：
+
+- `GET /portal/me/portfolio/ai-context`（会员本人，需登录）；
+- AI 工具 `portfolio_evidence(user_id)`（`app/ai/tools/portfolio.py`）。
+
+工具**不默认挂载**到内容助手：它需要明确的会员身份，只能由已鉴权的入口注入
+`user_id`，避免模型越权读取他人账本。工具只读，不提供任何写操作。

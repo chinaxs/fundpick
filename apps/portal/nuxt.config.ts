@@ -47,7 +47,7 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content:
-            '拾贝 FundPick：全市场公募基金筛选与排行。按区间收益、最大回撤、夏普比率、规模多维度筛选，指标口径公开可复算。',
+            '拾贝 FundPick：开源基金模拟交易与持仓管理工具，支持基金投资记账、买入卖出记录、净值查询、收益分析与基金筛选。',
         },
         { name: 'format-detection', content: 'telephone=no' },
       ],

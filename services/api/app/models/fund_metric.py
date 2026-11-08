@@ -57,6 +57,12 @@ class FundMetric(TimestampMixin, Base):
     nav_date: Mapped[date | None] = mapped_column(
         Date, nullable=True, comment="指标计算基准日（最新净值日）"
     )
+    risk_nav_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, comment="风险指标基准日（采集时最新净值日）"
+    )
+    risk_source: Mapped[str | None] = mapped_column(
+        String(80), nullable=True, comment="风险指标数据来源"
+    )
 
     return_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(12, 4), nullable=True, comment="区间收益率（%）"

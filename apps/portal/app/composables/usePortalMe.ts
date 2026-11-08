@@ -15,6 +15,7 @@ import type {
   PositionListData,
   PositionUpdatePayload,
   ProfileUpdatePayload,
+  PortfolioSummary,
 } from '@project/shared'
 import { useApiBase } from './usePortalApi'
 import { useAuth } from './useAuth'
@@ -25,6 +26,24 @@ interface MessageResult {
 
 const EMPTY_DASHBOARD: DashboardData = {
   period: '1y',
+  portfolio_summary: {
+    estimated_count: 0,
+    calculated_count: 0,
+    pending_count: 0,
+    count: 0,
+    total_amount: 0,
+    total_market_value: null,
+    total_profit: null,
+    profit_rate: null,
+    valued_count: 0,
+    realized_profit: 0,
+    total_return: null,
+    total_buy_amount: 0,
+    total_sell_amount: 0,
+    fees: 0,
+    transaction_count: 0,
+    legacy_count: 0,
+  },
   summary: {
     total_funds: 0,
     avg_return: null,
@@ -53,9 +72,9 @@ const EMPTY_DASHBOARD: DashboardData = {
 
 /** 工作台统计：period 为 ref 时切换区间会自动重新请求 */
 export function useDashboard(period: MaybeRef<string> = '1y') {
-  const { authHeaders } = useAuth()
+  const { authHeaders, user } = useAuth()
   return useAsyncData<DashboardData>(
-    'me-dashboard',
+    () => `me-dashboard-${user.value?.id ?? 'guest'}`,
     async () => {
       if (!authHeaders.value.Authorization) return { ...EMPTY_DASHBOARD }
       const res = await $fetch<ApiResponse<DashboardData>>('/portal/me/dashboard', {
@@ -63,9 +82,16 @@ export function useDashboard(period: MaybeRef<string> = '1y') {
         headers: authHeaders.value,
         query: { period: unref(period) },
       })
-      return res.data ?? { ...EMPTY_DASHBOARD }
+      if (res.code !== 0 || !res.data) throw new Error(res.message || '工作台数据加载失败')
+      return { ...res.data, portfolio_summary: res.data.portfolio_summary ?? null }
     },
-    { watch: [() => unref(period)] },
+    {
+      watch: [() => unref(period), () => authHeaders.value.Authorization],
+      transform: (value): DashboardData => ({
+        ...value,
+        portfolio_summary: value.portfolio_summary ?? null,
+      }),
+    },
   )
 }
 
@@ -103,39 +129,42 @@ export function deactivateMyAccount(password: string): Promise<MessageResult> {
 // ---------------------------------------------------------------- 模拟持仓
 /** 持仓页数据：明细 + 汇总一次取回；净值按买入日期自动取，用户不填净值 */
 export function usePositions() {
-  const { authHeaders } = useAuth()
-  return useAsyncData<PositionListData>('me-positions', async () => {
-    if (!authHeaders.value.Authorization) {
-      return {
-        items: [],
-        summary: {
-          count: 0,
-          total_amount: 0,
-          total_market_value: null,
-          total_profit: null,
-          profit_rate: null,
-          valued_count: 0,
-        },
+  const { authHeaders, user } = useAuth()
+  return useAsyncData<PositionListData>(
+    () => `me-positions-${user.value?.id ?? 'guest'}`,
+    async () => {
+      if (!authHeaders.value.Authorization) {
+        return {
+          items: [],
+          summary: {
+            count: 0,
+            total_amount: 0,
+            total_market_value: null,
+            total_profit: null,
+            profit_rate: null,
+            valued_count: 0,
+          },
+        }
       }
-    }
-    const res = await $fetch<ApiResponse<PositionListData>>('/portal/me/positions', {
-      baseURL: useApiBase(),
-      headers: authHeaders.value,
-    })
-    return (
-      res.data ?? {
-        items: [],
-        summary: {
-          count: 0,
-          total_amount: 0,
-          total_market_value: null,
-          total_profit: null,
-          profit_rate: null,
-          valued_count: 0,
-        },
-      }
-    )
-  })
+      const res = await $fetch<ApiResponse<PositionListData>>('/portal/me/positions', {
+        baseURL: useApiBase(),
+        headers: authHeaders.value,
+      })
+      return (
+        res.data ?? {
+          items: [],
+          summary: {
+            count: 0,
+            total_amount: 0,
+            total_market_value: null,
+            total_profit: null,
+            profit_rate: null,
+            valued_count: 0,
+          },
+        }
+      )
+    },
+  )
 }
 
 /** 新增模拟持仓：只录金额 + 日期，份额由服务端折算 */

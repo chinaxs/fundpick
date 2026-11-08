@@ -1,5 +1,7 @@
 """门户 - 公开接口（无需登录）。"""
 
+from typing import Annotated, Literal
+
 from fastapi import APIRouter, Query
 
 from app.api.deps import RequestIdDep, SessionDep
@@ -17,9 +19,10 @@ async def list_published(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
     keyword: str | None = None,
+    category: Annotated[Literal["policy", "market", "company", "other"] | None, Query()] = None,
 ) -> ApiResponse[PageResult[ArticleListItem]]:
     result = await ArticleService(session).list_published(
-        PageParams(page=page, page_size=page_size), keyword
+        PageParams(page=page, page_size=page_size), keyword, category
     )
     return ApiResponse(
         data=PageResult[ArticleListItem](

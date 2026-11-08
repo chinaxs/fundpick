@@ -2,9 +2,9 @@
  * Axios 实例：统一 baseURL、鉴权头、错误提示与 401 处理。
  * 业务层只关心 data，不关心 {code, message} 包装。
  */
-import axios, { type AxiosRequestConfig } from 'axios'
+import axios, { type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
-import { BIZ_CODE, STORAGE_KEYS, type ApiResponse } from '@project/shared'
+import { BIZ_CODE, STORAGE_KEYS, type ApiResponse, type TokenResponse } from '@project/shared'
 
 export class BusinessError extends Error {
   code: number
@@ -20,6 +20,7 @@ const http = axios.create({
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
+let refreshInFlight: Promise<TokenResponse> | null = null
 
 // 请求拦截：注入 access token
 http.interceptors.request.use((config) => {
@@ -30,12 +31,44 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截：401 统一登出
+// 响应拦截：401 时单次续期并重放请求；刷新令牌失效后清除本地会话。
 http.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error.response?.status
     if (status === 401) {
+      const original = error.config as
+        (InternalAxiosRequestConfig & { _authRetried?: boolean }) | undefined
+      const authEndpoint = /\/admin\/auth\/(login|refresh|logout)(?:\?|$)/.test(original?.url ?? '')
+      const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken)
+      if (original && !original._authRetried && !authEndpoint && refreshToken) {
+        original._authRetried = true
+        refreshInFlight ??= axios
+          .post<ApiResponse<TokenResponse>>(
+            `${import.meta.env.VITE_API_BASE_URL ?? '/api/v1'}/admin/auth/refresh`,
+            { refresh_token: refreshToken },
+            { timeout: 15_000 },
+          )
+          .then((response) => {
+            if (response.data.code !== BIZ_CODE.ok || !response.data.data) {
+              throw new BusinessError(response.data.code, response.data.message || '续期失败')
+            }
+            return response.data.data
+          })
+          .finally(() => {
+            refreshInFlight = null
+          })
+        try {
+          const tokens = await refreshInFlight
+          localStorage.setItem(STORAGE_KEYS.accessToken, tokens.access_token)
+          localStorage.setItem(STORAGE_KEYS.refreshToken, tokens.refresh_token)
+          original.headers.Authorization = `Bearer ${tokens.access_token}`
+          return await http.request(original)
+        } catch {
+          // Fall through to local logout when rotation fails.
+        }
+      }
+
       localStorage.removeItem(STORAGE_KEYS.accessToken)
       localStorage.removeItem(STORAGE_KEYS.refreshToken)
       if (!location.pathname.startsWith('/login')) {

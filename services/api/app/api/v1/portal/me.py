@@ -52,9 +52,7 @@ async def update_profile(
     return ApiResponse(data=PortalUserRead.model_validate(updated), request_id=request_id)
 
 
-@router.post(
-    "/change-password", summary="修改密码", response_model=ApiResponse[MessageResponse]
-)
+@router.post("/change-password", summary="修改密码", response_model=ApiResponse[MessageResponse])
 async def change_password(
     payload: ChangePasswordRequest,
     user: CurrentUser,
@@ -79,7 +77,12 @@ async def deactivate(
 
 
 # ---------------------------------------------------------------- 模拟持仓
-@router.get("/positions", summary="我的模拟持仓", response_model=ApiResponse[PositionListResponse])
+@router.get(
+    "/positions",
+    deprecated=True,
+    summary="我的模拟持仓",
+    response_model=ApiResponse[PositionListResponse],
+)
 async def list_positions(
     user: CurrentUser, session: SessionDep, request_id: RequestIdDep
 ) -> ApiResponse[PositionListResponse]:
@@ -90,7 +93,9 @@ async def list_positions(
     )
 
 
-@router.post("/positions", summary="新增模拟持仓", response_model=ApiResponse[PositionItem])
+@router.post(
+    "/positions", deprecated=True, summary="新增模拟持仓", response_model=ApiResponse[PositionItem]
+)
 async def create_position(
     payload: PositionCreateRequest,
     user: CurrentUser,
@@ -103,7 +108,10 @@ async def create_position(
 
 
 @router.patch(
-    "/positions/{position_id}", summary="编辑模拟持仓", response_model=ApiResponse[PositionItem]
+    "/positions/{position_id}",
+    deprecated=True,
+    summary="编辑模拟持仓",
+    response_model=ApiResponse[PositionItem],
 )
 async def update_position(
     position_id: int,
@@ -117,7 +125,10 @@ async def update_position(
 
 
 @router.delete(
-    "/positions/{position_id}", summary="删除模拟持仓", response_model=ApiResponse[MessageResponse]
+    "/positions/{position_id}",
+    deprecated=True,
+    summary="删除模拟持仓",
+    response_model=ApiResponse[MessageResponse],
 )
 async def delete_position(
     position_id: int,

@@ -2,9 +2,9 @@
 
 from functools import lru_cache
 from typing import Literal
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 
-from pydantic import computed_field, field_validator
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,10 +63,57 @@ class Settings(BaseSettings):
     # ---- 日志 ----
     LOG_LEVEL: str = "INFO"
 
-    @field_validator("SECRET_KEY")
-    @classmethod
-    def _warn_default_secret(cls, v: str) -> str:
-        return v
+    # ---- 采集调度 ----
+    # 由进程内的轻量调度器按 sync_schedules 表触发；多实例部署时靠数据库互斥去重
+    SYNC_SCHEDULER_ENABLED: bool = True
+    SYNC_SCHEDULER_INTERVAL_SECONDS: int = 60
+    # 日志同时写文件，便于采集/审计留档（相对 services/api）
+    LOG_FILE_ENABLED: bool = True
+
+    @model_validator(mode="after")
+    def validate_runtime_configuration(self) -> "Settings":
+        if self.APP_ENV == "test" and "test" not in self.MYSQL_DB.casefold():
+            raise ValueError(
+                "APP_ENV=test requires a dedicated MySQL database name containing 'test'"
+            )
+
+        if not self.is_production:
+            return self
+
+        problems: list[str] = []
+        secret = self.SECRET_KEY.strip()
+        if len(secret.encode()) < 32 or secret.casefold().startswith("change-me"):
+            problems.append("SECRET_KEY must be a unique value of at least 32 bytes")
+        if self.DEBUG:
+            problems.append("DEBUG must be false")
+        if not self.MYSQL_PASSWORD.strip() or self.MYSQL_PASSWORD.casefold() in {
+            "password",
+            "change-me",
+            "root123456",
+            "study_app_123456",
+        }:
+            problems.append("MYSQL_PASSWORD must be set to a non-placeholder secret")
+        if not self.MYSQL_USER.strip() or self.MYSQL_USER.casefold() == "root":
+            problems.append("MYSQL_USER must be a dedicated non-root account")
+        if "test" in self.MYSQL_DB.casefold():
+            problems.append("MYSQL_DB must not refer to a test database")
+        if self.CORS_ORIGIN_REGEX.strip():
+            problems.append("CORS_ORIGIN_REGEX is disabled in production; list explicit origins")
+        origins = self.cors_origin_list
+        if not origins:
+            problems.append("CORS_ORIGINS must list at least one HTTPS origin")
+        elif any(
+            urlsplit(origin).scheme != "https"
+            or not urlsplit(origin).netloc
+            or "*" in urlsplit(origin).netloc
+            for origin in origins
+        ):
+            problems.append("CORS_ORIGINS must contain explicit HTTPS origins without wildcards")
+        if self.AI_ENABLED and not self.OPENAI_API_KEY.strip():
+            problems.append("AI_ENABLED requires OPENAI_API_KEY")
+        if problems:
+            raise ValueError("Invalid production configuration: " + "; ".join(problems))
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, formatDateTime, type User } from '@project/shared'
 
@@ -7,6 +8,7 @@ import { userApi } from '@/api'
 import { csvFilename, exportCsv } from '@/utils/export'
 
 /** 门户会员管理（users 表）。后台员工账号在「系统 · 后台账号」页（staff_users 表）。 */
+const router = useRouter()
 const loading = ref(false)
 const rows = ref<User[]>([])
 const total = ref(0)
@@ -249,11 +251,19 @@ onMounted(fetchList)
         <el-table-column label="注册时间" width="160">
           <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openEdit(row as User)"
               >编辑</el-button
             >
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="router.push(`/members/${(row as User).id}/support`)"
+            >
+              排查
+            </el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row as User)"
               >删除</el-button
             >

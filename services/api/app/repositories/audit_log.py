@@ -13,6 +13,41 @@ class AuditLogRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def record(
+        self,
+        *,
+        username: str | None,
+        action: str,
+        resource: str,
+        resource_id: str | None,
+        method: str,
+        path: str,
+        user_id: int | None = None,
+        status_code: int = 200,
+        ip: str | None = None,
+        detail: str | None = None,
+    ) -> AuditLog:
+        """手工补一条审计记录。
+
+        中间件只覆盖 `/admin/**` 的**写操作**；查看会员交易这类
+        "只读但敏感"的行为必须由业务侧显式留痕，否则无法回答
+        "谁看过这个人的流水"。
+        """
+        log = AuditLog(
+            user_id=user_id,
+            username=username,
+            action=action,
+            resource=resource,
+            resource_id=resource_id,
+            method=method,
+            path=path,
+            status_code=status_code,
+            ip=ip,
+            detail=detail,
+        )
+        self.session.add(log)
+        return log
+
     @staticmethod
     def _filters(stmt, query: AuditQuery):
         if query.username:

@@ -53,6 +53,9 @@ class FundListItem(BaseModel):
     company_name: str | None = None
     manager_name: str | None = None
 
+    share_class: str | None = Field(default=None, description="份额类别，如 A/C；非份额基金为 None")
+    base_name: str | None = Field(default=None, description="去掉份额类别后的基础名称")
+
     latest_nav: float | None = None
     latest_nav_date: date | None = None
     scale: float | None = Field(default=None, description="规模（亿元）")
@@ -87,6 +90,10 @@ class MetricRead(BaseModel):
     max_drawdown: float | None = None
     volatility: float | None = None
     sharpe: float | None = None
+    risk_nav_date: date | None = None
+    risk_source: str | None = None
+    risk_coverage: int = 0
+    risk_stale: bool = True
     rank: int | None = None
     total: int | None = None
 
@@ -158,3 +165,54 @@ class FilterOptions(BaseModel):
     companies: list[FilterOption] = Field(default_factory=list)
     periods: list[FilterOption] = Field(default_factory=list)
     sort_fields: list[FilterOption] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------- 基金对比
+COMPARE_PERIODS: tuple[tuple[str, str], ...] = (
+    ("3m", "近3月"),
+    ("6m", "近6月"),
+    ("1y", "近1年"),
+    ("3y", "近3年"),
+)
+
+
+class ComparePeriod(BaseModel):
+    """某区间的对比项。available=False 表示该区间缺风险数据，不是 0。"""
+
+    period: str
+    label: str
+    return_rate: float | None = None
+    max_drawdown: float | None = None
+    sharpe: float | None = None
+    volatility: float | None = None
+    risk_nav_date: date | None = None
+    available: bool = False
+
+
+class FundCompareItem(BaseModel):
+    code: str
+    name: str
+    share_class: str | None = None
+    base_name: str | None = None
+    type: FundType
+    type_label: str
+    risk_level: RiskLevel | None = None
+    risk_label: str | None = None
+    company_name: str | None = None
+    manager_name: str | None = None
+    latest_nav: float | None = None
+    latest_nav_date: date | None = None
+    scale: float | None = None
+    fee_rate: float | None = Field(default=None, description="管理费率（%/年）")
+    custody_fee: float | None = None
+    inception_date: date | None = None
+    periods: list[ComparePeriod] = Field(default_factory=list)
+
+
+class FundCompareResult(BaseModel):
+    items: list[FundCompareItem] = Field(default_factory=list)
+    periods: list[str] = Field(default_factory=lambda: [period for period, _ in COMPARE_PERIODS])
+    note: str = (
+        "同一基金的 A/C 等份额收益接近但费率不同，对比前请确认份额类别；"
+        "标注「无数据」的区间表示上游未提供风险指标，不代表 0。"
+    )

@@ -106,9 +106,9 @@ const boards = computed(() => [
 ])
 
 useSeoMeta({
-  title: '拾贝 FundPick · 用数据挑基金',
+  title: '拾贝 FundPick · 基金模拟交易与持仓管理',
   description:
-    '覆盖全市场公募基金的筛选与排行工具。按区间收益、最大回撤、夏普比率、规模多维度筛选，每个排名可追溯、口径可复算。',
+    '开源基金模拟交易、投资记账和持仓管理工具。记录基金买入卖出，查询对应净值与费用，分析持仓收益，按收益、回撤和夏普筛选与对比基金。本站不执行真实交易。',
 })
 
 // 首页标题已含品牌，关闭全局 titleTemplate，避免拼成"... · 拾贝 · 拾贝"
@@ -339,11 +339,20 @@ useHead({ titleTemplate: null })
                 }}</span>
                 <NuxtLink :to="`/funds/${item.code}`" class="rank__main">
                   <span class="rank__name">{{ item.name }}</span>
-                  <span class="rank__meta">{{ item.code }} · {{ item.company_name || '—' }}</span>
+                  <span class="rank__meta"
+                    ><HoldingBadge :code="item.code" /> {{ item.code }} ·
+                    {{ item.company_name || '—' }}</span
+                  >
                 </NuxtLink>
                 <span class="rank__value num" :class="board.tone(item)">
                   {{ board.metric(item) }}
                 </span>
+                <FundBuyButton
+                  :code="item.code"
+                  :name="item.name"
+                  :nav-date="item.latest_nav_date"
+                  compact
+                />
               </li>
               <li v-if="board.items.length === 0" class="rank__empty">暂无数据</li>
             </ol>

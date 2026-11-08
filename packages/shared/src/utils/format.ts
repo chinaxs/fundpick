@@ -70,3 +70,25 @@ export function toneOf(value: number | null | undefined): 'up' | 'down' | 'neutr
   if (value === null || value === undefined || value === 0) return 'neutral'
   return value > 0 ? 'up' : 'down'
 }
+
+/**
+ * 大额金额（成交额等）：入参单位是元，输出中文习惯的亿万单位。
+ * 1.2e11 → 1200 亿；3.4e12 → 3.4 万亿。
+ */
+export function fmtAmountCN(value: number | null | undefined, digits = 0): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  const abs = Math.abs(value)
+  if (abs >= 1e12) return `${(value / 1e12).toFixed(2)} 万亿`
+  if (abs >= 1e8) return `${(value / 1e8).toFixed(digits)} 亿`
+  if (abs >= 1e4) return `${(value / 1e4).toFixed(digits)} 万`
+  return value.toFixed(digits)
+}
+
+/** 点位：千分位 + 两位小数（指数点位习惯保留两位） */
+export function fmtPoint(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  return value.toLocaleString('zh-CN', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}

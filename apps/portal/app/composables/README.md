@@ -47,3 +47,17 @@ SSR 阶段服务端读不到 localStorage，会在首屏渲染成"未登录"，�
 
 ## 依赖
 上游：`@project/shared`、Nuxt runtimeConfig ｜ 下游：`pages`
+
+## 基金筛选与会员工作台
+
+`useFundScreener.ts` 负责 URL 参数校验、筛选状态、搜索防抖与排序方向；
+页面调用 `useFundList` 获取结果，URL 是条件的唯一来源。搜索使用 replace，离散筛选使用 push，
+浏览器返回时直接恢复 URL 对应条件。
+
+`usePortalMe.ts` 的 `useDashboard` / `usePositions` 按会员 ID 使用响应式请求 key，
+登录、退出和切换账号会切换缓存并加载对应数据。区间变化只影响关注统计，不改变模拟持仓口径。
+
+`usePortfolio.ts` 管理私有组合、分页流水、预览/确认/作废；按会员隔离缓存。`useTradeForm.ts` 管理录入与预览，重复确认复用 request_key。
+
+`useHoldingStatus.ts` 按会员共享已持仓代码，检查账号与请求版本，防止旧请求污染新账号；
+`useTradeDialog.ts` 保留基金选择、衔接登录并统一打开当前页弹窗。`useTransactions` 可在流水视图启用时再加载。

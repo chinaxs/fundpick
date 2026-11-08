@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
+
 import {
   FUND_PERIOD_MAP,
   FUND_SECTOR_MAP,
@@ -22,6 +24,23 @@ if (!fund.value) {
 }
 
 const { data: metrics } = await useFundMetrics(code)
+
+// 对比清单：加入后直接跳到对比页，避免"加了但不知道去哪看"
+const compareList = useCompareFunds()
+function toggleCompare() {
+  if (!fund.value) return
+  const current = fund.value.code
+  if (compareList.codes.value.includes(current)) {
+    void navigateTo('/compare')
+    return
+  }
+  if (!compareList.canAdd.value) {
+    ElMessage.warning('最多对比 3 只基金，请先在对比页移除一只')
+    return
+  }
+  compareList.add(current)
+  void navigateTo('/compare')
+}
 
 // 季度重仓股：与 detail/metrics 一样 await 进 SSR（首屏直接可见，SEO 友好）；
 // 首次访问未采集的基金会触发实时回填，约多 1 秒
@@ -161,6 +180,13 @@ useSeoMeta({
             >
               {{ RISK_LEVEL_MAP[fund.risk_level] }}
             </span>
+            <span
+              v-if="fund?.share_class"
+              class="pill"
+              title="同一基金的 A/C 等份额收益接近，但费率与销售服务费不同"
+            >
+              {{ fund.share_class }} 类份额
+            </span>
             <span v-if="fund?.is_index && fund?.tracking_index" class="pill">
               跟踪 {{ fund.tracking_index }}
             </span>
@@ -168,7 +194,12 @@ useSeoMeta({
         </div>
 
         <div class="head__side">
+          <button type="button" class="pill pill--link compare-btn" @click="toggleCompare">
+            加入对比
+          </button>
           <FavoriteButton v-if="fund" :code="fund.code" />
+          <HoldingBadge :code="code" />
+          <FundBuyButton :code="code" :name="fund?.name" :nav-date="fund?.latest_nav_date" />
 
           <div class="head__nav">
             <span class="head__nav-label">单位净值</span>
@@ -282,7 +313,18 @@ useSeoMeta({
             </thead>
             <tbody>
               <tr v-for="period in displayPeriods" :key="period">
-                <td>{{ FUND_PERIOD_MAP[period] }}</td>
+                <td>
+                  {{ FUND_PERIOD_MAP[period] }}
+                  <small class="metric-source">
+                    <template v-if="metricMap.get(period)?.risk_nav_date">
+                      风险数据 {{ metricMap.get(period)?.risk_nav_date }} ·
+                      {{ metricMap.get(period)?.risk_source ?? '来源未知' }} · 覆盖
+                      {{ metricMap.get(period)?.risk_coverage }}/3
+                      <span v-if="metricMap.get(period)?.risk_stale">· 待更新</span>
+                    </template>
+                    <template v-else>风险指标待采集 · 覆盖 0/3</template>
+                  </small>
+                </td>
                 <td class="ta-r num" :class="rowTone(metricMap.get(period)?.return_rate)">
                   {{ fmtPct(metricMap.get(period)?.return_rate) }}
                 </td>
@@ -632,6 +674,14 @@ useSeoMeta({
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.metric-source {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 /* 历史净值展开/收起 */

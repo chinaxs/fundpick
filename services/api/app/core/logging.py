@@ -26,14 +26,15 @@ def setup_logging() -> None:
     console.setFormatter(formatter)
     root.addHandler(console)
 
-    file_handler = RotatingFileHandler(
-        LOG_DIR / f"{settings.APP_NAME}.log",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setFormatter(formatter)
-    root.addHandler(file_handler)
+    if settings.LOG_FILE_ENABLED:
+        file_handler = RotatingFileHandler(
+            LOG_DIR / f"{settings.APP_NAME}.log",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
 
     # 降低第三方库噪音
     for noisy in ("sqlalchemy.engine", "uvicorn.access", "asyncio"):

@@ -27,6 +27,7 @@ interface ArticleListParams {
   page?: number
   page_size?: number
   keyword?: string
+  category?: string | null
 }
 
 /** 已发布文章列表（params 可为 ref/computed，变化时自动重新请求） */

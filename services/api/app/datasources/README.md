@@ -36,3 +36,5 @@ class WindProvider:
 
 ## 依赖
 上游：无 ｜ 下游：`scripts/sync_funds.py`
+
+`fund_fees.py` 解析公开前端申购/赎回费率，保留金额或持有期条件、原费率、来源渠道优惠；不收集管理/托管等运作费用作为交易费。AkShareProvider.transaction_fees 对业务服务暴露统一入口。

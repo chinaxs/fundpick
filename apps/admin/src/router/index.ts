@@ -79,6 +79,18 @@ export const layoutChildren: RouteRecordRaw[] = [
     meta: { title: '门户会员', icon: 'User', group: '用户' },
   },
   {
+    path: 'support',
+    name: 'support',
+    component: () => import('@/views/users/SupportView.vue'),
+    meta: { title: '会员支持', icon: 'ChatDotRound', group: '用户', superuser: true },
+  },
+  {
+    path: 'members/:id/support',
+    name: 'member-support',
+    component: () => import('@/views/users/MemberSupportView.vue'),
+    meta: { title: '会员排查', group: '用户', hidden: true, superuser: true },
+  },
+  {
     path: 'audit-logs',
     name: 'audit-logs',
     component: () => import('@/views/users/AuditLogView.vue'),

@@ -16,21 +16,32 @@ const cover = computed(() => props.article.cover_url || '')
 
     <div class="card__body">
       <h3 class="card__title">{{ article.title }}</h3>
-      <p class="card__summary">{{ article.summary || '暂无摘要' }}</p>
+      <!--      <p class="card__summary">{{ article.summary || '暂无摘要' }}</p>-->
       <div class="card__meta">
         <span>{{ formatDate(article.published_at) }}</span>
         <span>阅读 {{ article.view_count }}</span>
       </div>
+      <p v-if="article.origin === 'sync'" class="card__source">
+        摘编自 {{ article.source_name || '公开行情源' }} · 仅标题与摘要
+      </p>
     </div>
   </NuxtLink>
 </template>
 
 <style scoped>
+.card__source {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  font-size: 11px;
+  color: var(--muted-2);
+  border-top: 1px dashed var(--line);
+}
+
 .card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
+  background: #fafafa;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   transition:
@@ -78,6 +89,12 @@ const cover = computed(() => props.article.cover_url || '')
   font-size: 17px;
   font-weight: 600;
   line-height: 1.5;
+  line-clamp: no-ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* 限制 2 行 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card__summary {

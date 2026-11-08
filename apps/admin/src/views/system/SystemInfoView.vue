@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { formatDateTime } from '@project/shared'
 
 import { systemApi } from '@/api'
+import OpsPanel from '@/components/system/OpsPanel.vue'
 import type { SystemInfo } from '@/types/admin'
 
 /** 系统信息（仅超管）：运行环境 + 数据规模，用于快速排障 */
@@ -84,6 +85,8 @@ function sortByRows(a: { rows: number }, b: { rows: number }): number {
         <el-descriptions-item label="业务表合计">{{ totalRows }} 行</el-descriptions-item>
       </el-descriptions>
     </div>
+
+    <OpsPanel />
 
     <div class="card">
       <h3 class="section-title">数据表规模</h3>

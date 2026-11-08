@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -11,6 +12,7 @@ from app.models.article import Article, ArticleStatus
 from app.repositories.article import ArticleRepository
 from app.schemas.article import ArticleCreate, ArticleUpdate
 from app.schemas.common import PageParams, PageResult
+from app.services.article_version import ArticleVersionService
 from app.utils.text import slugify
 
 
@@ -22,6 +24,19 @@ class ArticleService:
     async def get_or_404(self, article_id: int) -> Article:
         article = await self.articles.get(article_id)
         if not article:
+            raise NotFoundError("文章不存在")
+        return article
+
+    async def _lock_article(self, article_id: int) -> Article:
+        article = (
+            await self.session.execute(
+                select(Article)
+                .where(Article.id == article_id, Article.deleted_at.is_(None))
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one_or_none()
+        if article is None:
             raise NotFoundError("文章不存在")
         return article
 
@@ -54,19 +69,23 @@ class ArticleService:
             candidate = f"{slug}-{index}"
         return candidate
 
-    async def create(self, payload: ArticleCreate) -> Article:
+    async def create(self, payload: ArticleCreate, editor: str | None = None) -> Article:
         slug = await self._ensure_unique_slug(payload.slug or slugify(payload.title))
         article = await self.articles.create(
             **payload.model_dump(exclude={"slug"}),
             slug=slug,
             published_at=datetime.now() if payload.status == ArticleStatus.PUBLISHED else None,
         )
+        # 新建也留一版：之后想回到"刚建好时"的状态有据可依
+        await ArticleVersionService(self.session).snapshot(article, editor)
         await self.session.commit()
         await self.session.refresh(article)
         return article
 
-    async def update(self, article_id: int, payload: ArticleUpdate) -> Article:
-        article = await self.get_or_404(article_id)
+    async def update(
+        self, article_id: int, payload: ArticleUpdate, editor: str | None = None
+    ) -> Article:
+        article = await self._lock_article(article_id)
         data = payload.model_dump(exclude_unset=True)
 
         if data.get("slug") and data["slug"] != article.slug:
@@ -75,6 +94,17 @@ class ArticleService:
             data["published_at"] = datetime.now()
 
         await self.articles.update(article, **data)
+        await ArticleVersionService(self.session).snapshot(article, editor)
+        await self.session.commit()
+        await self.session.refresh(article)
+        return article
+
+    async def restore_version(
+        self, article_id: int, version: int, editor: str | None = None
+    ) -> Article:
+        """恢复历史版本：正文回滚，同时追加一条新版本记录。"""
+        article = await self._lock_article(article_id)
+        article = await ArticleVersionService(self.session).restore(article, version, editor)
         await self.session.commit()
         await self.session.refresh(article)
         return article
@@ -100,9 +130,12 @@ class ArticleService:
         return affected
 
     async def list_published(
-        self, params: PageParams, keyword: str | None = None
+        self,
+        params: PageParams,
+        keyword: str | None = None,
+        category: str | None = None,
     ) -> PageResult[Article]:
-        return await self.articles.published(params, keyword)
+        return await self.articles.published(params, keyword, category)
 
     async def list_admin(
         self,
