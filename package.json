@@ -62,5 +62,13 @@
     "nuxt",
     "vue",
     "fastapi"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chinaxs/fundpick.git"
+  },
+  "homepage": "https://github.com/chinaxs/fundpick#readme",
+  "bugs": {
+    "url": "https://github.com/chinaxs/fundpick/issues"
+  }
 }

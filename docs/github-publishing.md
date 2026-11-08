@@ -2,7 +2,7 @@
 
 ## 仓库名称
 
-建议：`fundpick`。名称短且与产品一致；基金与模拟交易关键词放在About、Topics和README中。
+仓库：[chinaxs/fundpick](https://github.com/chinaxs/fundpick)，主分支为`main`。基金与模拟交易关键词放在About、Topics和README中。
 
 ## About描述
 

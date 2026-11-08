@@ -1,5 +1,8 @@
 # 拾贝 FundPick｜开源基金模拟交易与持仓管理
 
+[![CI](https://github.com/chinaxs/fundpick/actions/workflows/ci.yml/badge.svg)](https://github.com/chinaxs/fundpick/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **基金模拟交易、投资记账、持仓管理、基金筛选与收益分析工具。** 基于 Nuxt 4、Vue 3、FastAPI 和 MySQL，可自行部署。
 
 FundPick is an open-source, self-hosted **fund paper trading and portfolio tracker** for Chinese mutual funds. Track buy/sell records, historical NAV dates, fees and portfolio returns; screen and compare funds in one place.
@@ -45,9 +48,11 @@ FundPick is an open-source, self-hosted **fund paper trading and portfolio track
 
 ### 1. 安装依赖并生成本地配置
 
-克隆本仓库后，在项目根目录执行：
+克隆本仓库并进入项目根目录：
 
 ```bash
+git clone https://github.com/chinaxs/fundpick.git
+cd fundpick
 nvm use  # 使用nvm时；否则自行安装.nvmrc指定的Node版本
 pnpm install --frozen-lockfile
 pnpm setup:dev

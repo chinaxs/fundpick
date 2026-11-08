@@ -36,6 +36,11 @@ dev = [
     "ruff>=0.17.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/chinaxs/fundpick"
+Repository = "https://github.com/chinaxs/fundpick.git"
+Issues = "https://github.com/chinaxs/fundpick/issues"
+
 [tool.uv]
 # 应用型项目，不打包安装自身
 package = false
