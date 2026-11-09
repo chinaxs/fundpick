@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -14,3 +14,6 @@ class FundFeeSchedule(Base):
     rules: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False)
     source_url: Mapped[str] = mapped_column(String(300), nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    parser_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )

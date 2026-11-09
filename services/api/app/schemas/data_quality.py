@@ -29,6 +29,9 @@ class DataQualityIssue(BaseModel):
 class DataQualityReport(BaseModel):
     checked_on: date
     nav_stale_after_days: int
+    expected_nav_date: date | None = None
+    calendar_known: bool = False
+    freshness_note: str = ""
     summary: DataQualitySummary
     items: list[DataQualityIssue] = Field(default_factory=list)
     total: int = 0

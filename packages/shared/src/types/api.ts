@@ -746,6 +746,8 @@ export interface ApplicationRead {
   requires_review: boolean
   automatic_processing: boolean
   processing_message: string | null
+  last_attempt_at?: string | null
+  next_retry_at?: string | null
   id: number
   code: string
   name: string

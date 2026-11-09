@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDate } from '@project/shared'
+import { formatDateTime } from '@project/shared'
 
 import type { SyncJob } from '@/types/admin'
 
@@ -91,7 +91,8 @@ function hasDetail(job: SyncJob) {
             :image-size="48"
           />
           <div class="detail__meta">
-            超时上限 {{ row.timeout_seconds }} 秒 · 心跳 {{ formatDate(row.heartbeat_at) }} · PID
+            超时上限 {{ row.timeout_seconds }} 秒 · 心跳 {{ formatDateTime(row.heartbeat_at) }} ·
+            PID
             {{ row.pid ?? '—' }}
           </div>
         </div>
@@ -134,7 +135,7 @@ function hasDetail(job: SyncJob) {
     </el-table-column>
     <el-table-column prop="triggered_by" label="触发人" width="110" />
     <el-table-column label="开始时间" width="165">
-      <template #default="{ row }">{{ formatDate(row.started_at) }}</template>
+      <template #default="{ row }">{{ formatDateTime(row.started_at) }}</template>
     </el-table-column>
     <el-table-column label="耗时" width="95">
       <template #default="{ row }">{{ durationText(row.duration_ms) }}</template>

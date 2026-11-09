@@ -40,4 +40,6 @@ class TradeApplication(TimestampMixin, SoftDeleteMixin, Base):
         Boolean, nullable=False, default=False, server_default="0"
     )
     processing_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)

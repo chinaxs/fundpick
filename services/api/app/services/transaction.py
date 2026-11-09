@@ -225,6 +225,10 @@ class TransactionService:
             application = await self.repo.application(user_id, payload.request.application_id)
             assert application is not None
             application.status = "recorded"
+            application.processing_message = (
+                "已自动入账" if application.automatic_processing else "已按平台结果入账"
+            )
+            application.next_retry_at = None
             if not application.platform:
                 application.platform = (payload.request.platform or "").strip()
         if payload.request.legacy_position_id:

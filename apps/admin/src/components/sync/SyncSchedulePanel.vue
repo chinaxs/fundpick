@@ -52,6 +52,18 @@ async function fetchSchedules(silent = false) {
   }
 }
 
+async function installRecommended() {
+  saving.value = true
+  try {
+    schedules.value = await fundApi.installRecommendedSchedules()
+    ElMessage.success('已补齐推荐计划：早晨补采、晚间三轮更新，按北京时间执行')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '配置失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 function openCreate() {
   form.mode = 'quick'
   form.hour = 18
@@ -133,12 +145,22 @@ onMounted(() => void fetchSchedules(true))
       <div>
         <h3 class="section-title">定时采集</h3>
         <p class="hint">
-          由服务内调度器按配置触发；同一时间只允许一个任务，被占用的那一轮会在 6 小时内补跑。
+          按北京时间执行，证券休市日不采集基金数据；同一时间只运行一个任务，冲突时6小时内补跑。后台自动入账独立每分钟检查。
         </p>
       </div>
-      <el-button v-if="canEdit" type="primary" size="small" @click="openCreate">新增定时</el-button>
+      <div v-if="canEdit">
+        <el-button size="small" :loading="saving" @click="installRecommended"
+          >补齐推荐计划</el-button
+        ><el-button type="primary" size="small" @click="openCreate">新增定时</el-button>
+      </div>
     </div>
 
+    <el-alert
+      v-if="!loading && !schedules.some((row) => row.enabled)"
+      title="没有启用的定时计划；手动同步不会自动变成周期更新。"
+      type="warning"
+      :closable="false"
+    />
     <el-table
       v-loading="loading"
       :data="schedules"

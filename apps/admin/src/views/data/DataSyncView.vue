@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { formatDate } from '@project/shared'
+import { formatDate, formatDateTime } from '@project/shared'
 
 import { fundApi } from '@/api'
 import DataQualityPanel from '@/components/sync/DataQualityPanel.vue'
@@ -181,18 +181,20 @@ onBeforeUnmount(() => {
   if (pollTimer.value) clearInterval(pollTimer.value)
 })
 
-/** 净值滞后天数：只对工作日敏感，这里做粗略提示 */
-const navLagDays = computed(() => {
-  if (!status.value?.latest_nav_date) return null
-  const latest = new Date(status.value.latest_nav_date)
-  return Math.max(0, Math.floor((Date.now() - latest.getTime()) / 86_400_000))
-})
-
+/** The API owns the Beijing calendar and publication deadline. */
 const freshness = computed(() => {
-  if (navLagDays.value === null) return { text: '暂无净值数据', type: 'info' as const }
-  if (navLagDays.value <= 1) return { text: '数据新鲜', type: 'success' as const }
-  if (navLagDays.value <= 3) return { text: '数据滞后', type: 'warning' as const }
-  return { text: '数据严重滞后，请检查采集任务', type: 'danger' as const }
+  if (!status.value) return { text: '正在核对', type: 'info' as const }
+  const current = status.value.freshness_state === 'current'
+  if (current && ((status.value.lagging_funds ?? 0) > 0 || status.value.missing_nav_funds > 0))
+    return { text: '部分基金仍需补采', type: 'warning' as const }
+  return {
+    text: current
+      ? '最新披露已覆盖基准'
+      : status.value.freshness_state === 'lagging'
+        ? '未达到披露基准'
+        : '数据待核对',
+    type: current ? ('success' as const) : ('warning' as const),
+  }
 })
 
 const cards = computed(() => [
@@ -296,8 +298,21 @@ const cards = computed(() => [
         <el-tag v-if="!loading" :type="freshness.type" effect="light">{{ freshness.text }}</el-tag>
       </div>
 
+      <el-alert
+        v-if="status && (!status.scheduler_enabled || !status.enabled_schedules)"
+        title="尚未启用自动同步计划，请在下方补齐推荐计划。"
+        type="warning"
+        :closable="false"
+      />
+      <p class="sync-hint">
+        {{
+          status?.freshness_message
+        }}。22:00为境内普通基金的运营核对时间，非所有品种的保证发布时间。
+      </p>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="净值来源">AkShare 公开接口（T+1 更新）</el-descriptions-item>
+        <el-descriptions-item label="净值来源"
+          >公开基金净值；按交易日和披露时间核对</el-descriptions-item
+        >
         <el-descriptions-item label="采集方式">
           手动触发 / 定时调度；另支持命令行 CLI 与详情页按需回填
         </el-descriptions-item>
@@ -310,9 +325,40 @@ const cards = computed(() => [
         <el-descriptions-item label="最新净值日期">
           {{ formatDate(status?.latest_nav_date) }}
         </el-descriptions-item>
-        <el-descriptions-item label="滞后天数">
-          {{ navLagDays === null ? '—' : `${navLagDays} 天` }}
-        </el-descriptions-item>
+        <el-descriptions-item label="应披露基准">{{
+          status?.expected_nav_date ?? '交易日历未知'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="缺失交易日"
+          >{{ status?.nav_lag_trading_days ?? '—' }}（周末、节假日不计）</el-descriptions-item
+        >
+        <el-descriptions-item label="普通基金覆盖"
+          >已达基准 {{ status?.current_funds ?? '—' }} · 待更新 {{ status?.lagging_funds ?? '—' }} ·
+          无净值 {{ status?.missing_nav_funds ?? '—' }}</el-descriptions-item
+        >
+        <el-descriptions-item label="特殊品种"
+          >{{
+            status?.special_funds ?? '—'
+          }}
+          只，QDII/FOF或暂停品种按各自披露规则核对</el-descriptions-item
+        >
+        <el-descriptions-item label="定时同步"
+          >{{ status?.scheduler_enabled ? '调度器已开启' : '调度器未开启' }} ·
+          {{ status?.enabled_schedules ?? 0 }} 条启用计划</el-descriptions-item
+        >
+        <el-descriptions-item label="最近数据同步">{{
+          formatDateTime(status?.last_data_sync_at)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="自动入账"
+          >{{
+            status?.auto_reconcile_enabled
+              ? `后台每${status.auto_reconcile_interval_seconds}秒检查`
+              : '未开启'
+          }}
+          · {{ status?.pending_automatic ?? 0 }} 笔待处理</el-descriptions-item
+        >
+        <el-descriptions-item label="最近入账核对">{{
+          formatDateTime(status?.last_automatic_check_at)
+        }}</el-descriptions-item>
       </el-descriptions>
     </div>
 

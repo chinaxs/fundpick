@@ -1,13 +1,15 @@
 """Prioritized per-fund data issues for admin review and targeted collection."""
 
-from datetime import date, timedelta
+from datetime import datetime
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund
 from app.models.fund_metric import FundMetric
 from app.schemas.data_quality import DataQualityIssue, DataQualityReport, DataQualitySummary
+from app.services.data_freshness import SPECIAL_TYPES, expected_nav_date
+from app.trading_calendar import SHANGHAI
 
 NAV_STALE_AFTER_DAYS = 3
 
@@ -19,14 +21,23 @@ class DataQualityService:
     async def report(
         self, page: int = 1, page_size: int = 100, keyword: str | None = None
     ) -> DataQualityReport:
-        today = date.today()
-        stale_before = today - timedelta(days=NAV_STALE_AFTER_DAYS)
+        today = datetime.now(SHANGHAI).date()
+        stale_before = expected_nav_date()
         join_condition = and_(FundMetric.fund_id == Fund.id, FundMetric.period == "1y")
         base = (
             select(Fund.id).outerjoin(FundMetric, join_condition).where(Fund.deleted_at.is_(None))
         )
         missing_nav = or_(Fund.latest_nav.is_(None), Fund.latest_nav_date.is_(None))
-        lagging_nav = and_(Fund.latest_nav_date.is_not(None), Fund.latest_nav_date < stale_before)
+        lagging_nav = (
+            and_(
+                Fund.latest_nav_date.is_not(None),
+                Fund.status == "open",
+                Fund.type.not_in(SPECIAL_TYPES),
+                Fund.latest_nav_date < stale_before,
+            )
+            if stale_before
+            else false()
+        )
         missing_return = or_(FundMetric.id.is_(None), FundMetric.return_rate.is_(None))
         stale_risk = and_(
             Fund.latest_nav_date.is_not(None),
@@ -102,8 +113,13 @@ class DataQualityService:
             if fund.latest_nav is None or fund.latest_nav_date is None:
                 fields.append("缺少最新净值")
                 needs_snapshot = True
-            elif age is not None and age > NAV_STALE_AFTER_DAYS:
-                fields.append(f"净值日期滞后 {age} 天")
+            elif (
+                stale_before
+                and fund.type not in SPECIAL_TYPES
+                and fund.status == "open"
+                and fund.latest_nav_date < stale_before
+            ):
+                fields.append(f"净值未达到披露基准 {stale_before}")
                 needs_snapshot = True
             if metric is None or metric.return_rate is None:
                 fields.append("缺少 1 年收益指标")
@@ -132,6 +148,9 @@ class DataQualityService:
         return DataQualityReport(
             checked_on=today,
             nav_stale_after_days=NAV_STALE_AFTER_DAYS,
+            expected_nav_date=stale_before,
+            calendar_known=stale_before is not None,
+            freshness_note="按北京时间交易日历及22:00核对时间判断；周末和节假日不累计为延迟，QDII/FOF等特殊品种单独核对。",
             summary=summary,
             items=items,
             total=total,

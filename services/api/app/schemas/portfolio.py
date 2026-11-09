@@ -184,6 +184,8 @@ class ApplicationRead(BaseModel):
     automatic_processing: bool = False
     requires_review: bool = False
     processing_message: str | None = None
+    last_attempt_at: datetime | None = None
+    next_retry_at: datetime | None = None
     id: int
     code: str
     name: str

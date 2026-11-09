@@ -68,12 +68,18 @@ const cards = computed(() => [
 ])
 
 /** 净值新鲜度：lag<=1 天视为健康 */
-const navLag = computed(() => overview.value?.nav_date_lag_days ?? null)
 const navFreshness = computed(() => {
-  if (navLag.value === null) return { text: '暂无净值', type: 'info' as const }
-  if (navLag.value <= 1) return { text: `T+${navLag.value} · 数据新鲜`, type: 'success' as const }
-  if (navLag.value <= 3) return { text: `滞后 ${navLag.value} 天`, type: 'warning' as const }
-  return { text: `滞后 ${navLag.value} 天，请关注采集任务`, type: 'danger' as const }
+  const data = overview.value
+  if (!data) return { text: '正在核对净值', type: 'info' as const }
+  return {
+    text: data.freshness_message || '暂无净值',
+    type:
+      data.freshness_state === 'current'
+        ? ('success' as const)
+        : data.freshness_state === 'lagging'
+          ? ('warning' as const)
+          : ('info' as const),
+  }
 })
 
 /** 类型分布条宽：按最大计数归一化 */

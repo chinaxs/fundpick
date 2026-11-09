@@ -49,6 +49,7 @@ import type {
   SyncSchedule,
   SyncSchedulePayload,
   SyncTriggerPayload,
+  SyncStatus,
   SystemInfo,
 } from '@/types/admin'
 
@@ -109,10 +110,7 @@ export const articleApi = {
 
 export const fundApi = {
   list: (params: FundQuery) => api.get<PageResult<FundListItem>>(`${ADMIN}/funds`, params),
-  syncStatus: () =>
-    api.get<{ fund_total: number; nav_rows: number; latest_nav_date: string | null }>(
-      `${ADMIN}/funds/sync-status`,
-    ),
+  syncStatus: () => api.get<SyncStatus>(`${ADMIN}/funds/sync-status`),
   dataQuality: (params?: { page?: number; page_size?: number; keyword?: string }) =>
     api.get<DataQualityReport>(`${ADMIN}/funds/data-quality`, params),
   triggerSync: (payload: SyncTriggerPayload) => api.post<SyncJob>(`${ADMIN}/funds/sync`, payload),
@@ -122,6 +120,8 @@ export const fundApi = {
   retrySync: (id: number) => api.post<SyncJob>(`${ADMIN}/funds/sync/jobs/${id}/retry`),
   syncAlerts: (hours = 24) => api.get<SyncAlert[]>(`${ADMIN}/funds/sync/alerts`, { hours }),
   syncSchedules: () => api.get<SyncSchedule[]>(`${ADMIN}/funds/sync/schedules`),
+  installRecommendedSchedules: () =>
+    api.post<SyncSchedule[]>(`${ADMIN}/funds/sync/schedules/recommended`),
   createSchedule: (payload: SyncSchedulePayload) =>
     api.post<SyncSchedule>(`${ADMIN}/funds/sync/schedules`, payload),
   updateSchedule: (id: number, payload: Partial<SyncSchedulePayload>) =>

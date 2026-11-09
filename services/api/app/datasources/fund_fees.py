@@ -6,6 +6,7 @@ from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup
 
 SOURCE = "https://fundf10.eastmoney.com/jjfl_{code}.html"
+PARSER_VERSION = 2
 
 
 def parse_fee_page(html: str) -> list[dict[str, str]]:
@@ -31,21 +32,38 @@ def parse_fee_page(html: str) -> list[dict[str, str]]:
                             }
                         )
             continue
-        kind = "buy" if title == "申购费率（前端）" else "sell" if title == "赎回费率" else None
+        kind = (
+            "buy"
+            if title in {"申购费率", "申购费率（前端）"}
+            else "sell"
+            if title == "赎回费率"
+            else None
+        )
         if not kind:
             continue
         table = heading.find_next("table")
         if table is None:
             continue
-        for row in table.select("tbody tr"):
+        fee_rows = table.select("tbody tr")
+        for row in fee_rows:
             cells = row.find_all("td")
             if len(cells) != 2:
                 continue  # 有其他限定条件时不得猜测
             parts = re.split(r"\|", cells[1].get_text(" ", strip=True))
+            condition = cells[0].get_text(strip=True)
+            # C类页面常见“申购费率 / --- / 0.00%”：仅在唯一明确零费率行时
+            # 视为全金额免申购费，不能根据份额字母、缺表或未知文本猜零。
+            if (
+                kind == "buy"
+                and len(fee_rows) == 1
+                and condition in {"---", "--", "—", "-"}
+                and re.fullmatch(r"0+(?:\.0+)?%", parts[0].strip())
+            ):
+                condition = "大于等于0元"
             rules.append(
                 {
                     "kind": kind,
-                    "condition": cells[0].get_text(strip=True),
+                    "condition": condition,
                     "standard": parts[0].strip(),
                     "discounted": parts[-1].strip() if len(parts) == 2 else "",
                 }

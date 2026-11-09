@@ -56,6 +56,10 @@ export interface DashboardOverview {
   managers_total: number
   nav_latest_date: string | null
   nav_date_lag_days: number | null
+  expected_nav_date: string | null
+  nav_lag_trading_days: number | null
+  freshness_state: string
+  freshness_message: string
   coverage: CoverageItem[]
   user_total: number
   user_staff: number
@@ -91,6 +95,23 @@ export interface SyncStatus {
   fund_total: number
   nav_rows: number
   latest_nav_date: string | null
+  expected_nav_date: string | null
+  calendar_known: boolean
+  nav_lag_trading_days: number | null
+  freshness_state: string
+  freshness_message: string
+  checked_at: string
+  current_funds: number | null
+  lagging_funds: number | null
+  missing_nav_funds: number
+  special_funds: number
+  scheduler_enabled: boolean
+  enabled_schedules: number
+  last_data_sync_at: string | null
+  auto_reconcile_enabled: boolean
+  auto_reconcile_interval_seconds: number
+  pending_automatic: number
+  last_automatic_check_at: string | null
 }
 
 export interface DataQualitySummary {
@@ -116,6 +137,9 @@ export interface DataQualityIssue {
 export interface DataQualityReport {
   checked_on: string
   nav_stale_after_days: number
+  expected_nav_date: string | null
+  calendar_known: boolean
+  freshness_note: string
   summary: DataQualitySummary
   items: DataQualityIssue[]
   total: number
@@ -191,7 +215,16 @@ export interface SyncTriggerPayload {
 
 export const SYNC_MODE_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: 'quick', label: '基础数据 / 最新净值', hint: '约 1 分钟，刷新列表页净值与区间收益' },
-  { value: 'snapshot', label: '指定基金净值', hint: '查询最新净值与区间收益' },
+  {
+    value: 'snapshot',
+    label: '净值与区间收益',
+    hint: '更新全市场净值快照，可填写代码限定范围；历史曲线和风险由持仓与关注更新任务补齐',
+  },
+  {
+    value: 'tracked',
+    label: '持仓与关注数据',
+    hint: '更新持仓、关注及待入账基金的历史净值和风险指标',
+  },
   { value: 'risk', label: '风险指标', hint: '逐只请求，耗时较长，建议配合 limit 分批' },
   { value: 'sector', label: '主题板块推导', hint: '本地规则推导，秒级完成' },
   { value: 'risk-level', label: '风险等级推导', hint: '本地规则推导，秒级完成' },

@@ -9,7 +9,7 @@ from sqlalchemy.dialects.mysql import insert
 
 from app.core.logging import get_logger
 from app.datasources import get_provider
-from app.datasources.fund_fees import SOURCE
+from app.datasources.fund_fees import PARSER_VERSION, SOURCE
 from app.db.session import async_session_factory
 from app.models.fund_fee_schedule import FundFeeSchedule
 from app.models.fund_nav import FundNav
@@ -23,12 +23,11 @@ async def lookup_rules(fund_id: int, code: str):
     """正缓存24小时，空结果5分钟，避免失败时每行/每秒请求上游。"""
     async with async_session_factory() as session:
         cached = await session.get(FundFeeSchedule, fund_id)
-        ttl = timedelta(hours=24) if cached and cached.rules else timedelta(minutes=5)
         if cached is not None:
-            complete = not cached.rules or any(
-                row["kind"] == "confirmation" for row in cached.rules
-            )
-            if complete and datetime.now() - cached.fetched_at < ttl:
+            kinds = {row["kind"] for row in cached.rules}
+            complete = {"buy", "sell", "confirmation"} <= kinds
+            ttl = timedelta(hours=24) if complete else timedelta(minutes=5)
+            if cached.parser_version == PARSER_VERSION and datetime.now() - cached.fetched_at < ttl:
                 return cached.rules, cached.source_url, cached.fetched_at
     key = f"fees:{code}"
     if monotonic() - _attempts.get(key, -1e9) < 30:
@@ -42,9 +41,17 @@ async def lookup_rules(fund_id: int, code: str):
     fetched_at = datetime.now()
     async with async_session_factory() as session:
         statement = insert(FundFeeSchedule).values(
-            fund_id=fund_id, rules=rules, source_url=SOURCE.format(code=code), fetched_at=fetched_at
+            fund_id=fund_id,
+            rules=rules,
+            source_url=SOURCE.format(code=code),
+            fetched_at=fetched_at,
+            parser_version=PARSER_VERSION,
         )
-        await session.execute(statement.on_duplicate_key_update(rules=rules, fetched_at=fetched_at))
+        await session.execute(
+            statement.on_duplicate_key_update(
+                rules=rules, fetched_at=fetched_at, parser_version=PARSER_VERSION
+            )
+        )
         await session.commit()
     return rules, SOURCE.format(code=code), fetched_at
 

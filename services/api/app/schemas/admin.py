@@ -65,6 +65,10 @@ class DashboardOverview(BaseModel):
     nav_date_lag_days: int | None = Field(
         default=None, description="最新净值日距今的天数，用于判断数据是否及时"
     )
+    expected_nav_date: date | None = None
+    nav_lag_trading_days: int | None = None
+    freshness_state: str = "unknown"
+    freshness_message: str = ""
     coverage: list[CoverageItem] = Field(default_factory=list)
     user_total: int = 0
     user_staff: int = 0
