@@ -270,6 +270,7 @@ export interface FundMetric {
   sharpe: number | null
   risk_nav_date: string | null
   risk_source: string | null
+  risk_reason?: string | null
   risk_coverage: number
   risk_stale: boolean
   rank: number | null
@@ -297,6 +298,22 @@ export interface FundHoldingsResult {
   quarter: string | null
   items: FundHoldingItem[]
   total_ratio: number | null
+}
+
+export interface FundHoldingQuote {
+  stock_code: string
+  price: number | null
+  change_pct: number | null
+  quoted_at: string | null
+  is_today: boolean
+  degraded: boolean
+  source: string | null
+  message: string | null
+}
+
+export interface FundHoldingQuotesResult {
+  items: FundHoldingQuote[]
+  fetched_at: string
 }
 
 export interface FilterOption {

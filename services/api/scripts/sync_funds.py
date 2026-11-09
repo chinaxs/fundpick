@@ -345,10 +345,12 @@ async def sync_risks(
     """风险指标：新增与最新净值基准日不一致的 1y/3y/5y 快照。"""
     stmt = (
         select(Fund.id, Fund.code, Fund.latest_nav_date)
-        .join(FundMetric, FundMetric.fund_id == Fund.id)
+        .outerjoin(
+            FundMetric,
+            (FundMetric.fund_id == Fund.id) & (FundMetric.period == "1y"),
+        )
         .where(
             Fund.deleted_at.is_(None),
-            FundMetric.period == "1y",
             Fund.latest_nav_date.is_not(None),
             FundMetric.risk_nav_date.is_distinct_from(Fund.latest_nav_date),
         )

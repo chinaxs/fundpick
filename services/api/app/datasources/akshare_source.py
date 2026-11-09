@@ -205,7 +205,12 @@ class AkShareProvider:
                 rank=0,  # 分组后重排
                 ratio=_to_float(getattr(row, "占净值比例", None)),
                 shares=_to_float(getattr(row, "持股数", None)),
-                market_value=_to_float(getattr(row, "持仓市值", None)),
+                # 上游单位为万元；API和页面统一为亿元。
+                market_value=(
+                    round(value / 10000, 4)
+                    if (value := _to_float(getattr(row, "持仓市值", None))) is not None
+                    else None
+                ),
             )
 
         holdings: list[FundHolding] = []

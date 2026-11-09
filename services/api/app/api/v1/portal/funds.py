@@ -14,6 +14,7 @@ from app.schemas.fund import (
     FundDetail,
     FundListItem,
     FundQuery,
+    HoldingQuotesResult,
     HoldingsResult,
     MetricRead,
     NavPointRead,
@@ -95,7 +96,7 @@ async def fund_navs(
 ) -> ApiResponse[list[NavPointRead]]:
     """按时间区间返回净值序列，供详情页曲线使用。
 
-    本地没有数据时会实时回填一次（首次访问约 1 秒，之后走本地）。
+    按持久化刷新时间补齐历史；上游失败时保留已有日期和值。
     """
     data = await FundService(session).ensure_navs(code, period, limit)
     return ApiResponse(data=data, request_id=request_id)
@@ -112,7 +113,27 @@ async def fund_holdings(
 ) -> ApiResponse[HoldingsResult]:
     """季度重仓股明细（季报数据，占净值比例降序）。
 
-    本地没有数据时会实时回填一次；债券/货币基金通常无股票持仓，返回空列表。
+    已有数据也会定期检查最新披露；债券/货币基金通常无股票持仓，返回空列表。
     """
     data = await FundService(session).holdings(code, quarter)
     return ApiResponse(data=data, request_id=request_id)
+
+
+@router.get(
+    "/{code}/holdings/quotes",
+    summary="前十大重仓股最新行情",
+    response_model=ApiResponse[HoldingQuotesResult],
+)
+async def fund_holding_quotes(
+    code: str,
+    session: SessionDep,
+    request_id: RequestIdDep,
+    quarter: Annotated[str | None, Query(pattern=r"^\d{4}Q[1-4]$")] = None,
+) -> ApiResponse[HoldingQuotesResult]:
+    from app.services.stock_quotes import holding_quotes
+
+    service = FundService(session)
+    fund = await service._require_fund(code)
+    rows = await service.funds.holdings(fund.id, quarter)
+    codes = [row.stock_code for row in rows if (row.rank or 99) <= 10]
+    return ApiResponse(data=await holding_quotes(codes), request_id=request_id)

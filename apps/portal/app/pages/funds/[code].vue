@@ -18,12 +18,27 @@ import {
 const route = useRoute()
 const code = String(route.params.code)
 
-const { data: fund } = await useFundDetail(code)
+const { data: fund, refresh: refreshFund } = await useFundDetail(code)
 if (!fund.value) {
   throw createError({ statusCode: 404, statusMessage: '基金不存在', fatal: true })
 }
 
-const { data: metrics } = await useFundMetrics(code)
+// Refresh the complete NAV history before deriving missing risk measures.
+const navRange = ref<NavRange>('1y')
+const {
+  data: navs,
+  pending: navsPending,
+  error: navsError,
+  refresh: refreshNavs,
+} = await useFundNavs(code, navRange, 2000)
+if (
+  navs.value?.at(-1)?.nav_date &&
+  ((navs.value.at(-1)?.nav_date ?? '') > (fund.value.latest_nav_date ?? '') ||
+    (navs.value.at(-1)?.nav_date === fund.value.latest_nav_date &&
+      navs.value.at(-1)?.unit_nav !== fund.value.latest_nav))
+)
+  await refreshFund()
+const { data: metrics, refresh: refreshMetrics } = await useFundMetrics(code)
 
 // 对比清单：加入后直接跳到对比页，避免"加了但不知道去哪看"
 const compareList = useCompareFunds()
@@ -46,6 +61,41 @@ function toggleCompare() {
 // 首次访问未采集的基金会触发实时回填，约多 1 秒
 const holdingQuarter = ref<string | null>(null)
 const { data: holdings } = await useFundHoldings(code, holdingQuarter)
+const {
+  data: quotes,
+  pending: quotesPending,
+  error: quotesError,
+  refresh: refreshQuotes,
+} = await useFundHoldingQuotes(code, holdingQuarter)
+const quoteMap = computed(() => new Map((quotes.value?.items ?? []).map((q) => [q.stock_code, q])))
+const quoteTime = (value: string | null | undefined) =>
+  value
+    ? new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(value))
+    : ''
+let quoteTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  quoteTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') void refreshQuotes()
+  }, 60000)
+})
+onBeforeUnmount(() => {
+  if (quoteTimer) clearInterval(quoteTimer)
+})
+watch(navRange, () => {
+  navVisible.value = 12
+})
+async function retryNavs() {
+  await refreshNavs()
+  await refreshMetrics()
+  await refreshFund()
+}
 
 const topHoldings = computed(() =>
   (holdings.value?.items ?? []).filter((h) => (h.rank ?? 99) <= 10),
@@ -63,8 +113,6 @@ function ratioBarWidth(ratio: number | null): string {
 }
 
 // 曲线区间：默认近 1 年，切换时自动重新请求（composable 内 watch）
-const navRange = ref<NavRange>('1y')
-const { data: navs, pending: navsPending } = await useFundNavs(code, navRange)
 
 const navRangeLabel = computed(() => NAV_RANGE_MAP[navRange.value])
 
@@ -90,6 +138,12 @@ const metricMap = computed(() => {
 
 const displayPeriods = ['1m', '3m', '6m', '1y', '3y', 'all'] as const
 const headline = computed(() => metricMap.value.get('1y'))
+const lastNavDate = computed(() => navs.value?.at(-1)?.nav_date)
+const historyBehind = computed(
+  () =>
+    !!fund.value?.latest_nav_date &&
+    (!lastNavDate.value || lastNavDate.value < fund.value.latest_nav_date),
+)
 
 const statCards = computed(() => [
   {
@@ -226,7 +280,8 @@ useSeoMeta({
           <div>
             <h2 class="block__title">净值走势</h2>
             <p class="block__sub">
-              {{ navRangeLabel }} · {{ navs?.length ?? 0 }} 个数据点
+              {{ navRangeLabel }} · {{ navs?.length ?? 0 }} 个数据点 · 最新
+              {{ lastNavDate ?? '暂无' }}
               <span v-if="navRange === 'all'" class="block__hint">（超长区间已等距抽样）</span>
             </p>
           </div>
@@ -245,6 +300,15 @@ useSeoMeta({
           </div>
         </div>
 
+        <p v-if="navsError || historyBehind" class="data-warning" role="status">
+          {{
+            navsError ? '净值加载失败，暂时保留已显示数据。' : '历史净值源尚未更新到最新披露日。'
+          }}
+          <button type="button" class="data-retry" @click="retryNavs">重新加载</button>
+        </p>
+        <p class="block__sub data-note">
+          官方净值按披露日期更新，交易日收盘后陆续公布；当前日期尚未公布时不使用估值替代。
+        </p>
         <div class="chart-wrap" :class="{ 'chart-wrap--pending': navsPending }">
           <FundNavChart :points="navs ?? []" :height="300" />
         </div>
@@ -295,7 +359,9 @@ useSeoMeta({
         <div class="block__head">
           <div>
             <h2 class="block__title">区间表现</h2>
-            <p class="block__sub">收益为区间累计，回撤与波动为同期风险指标</p>
+            <p class="block__sub">
+              收益为区间累计，风险指标标明来源；净值测算按252日年化、无风险利率0，可能与平台口径不同。
+            </p>
           </div>
         </div>
 
@@ -320,9 +386,15 @@ useSeoMeta({
                       风险数据 {{ metricMap.get(period)?.risk_nav_date }} ·
                       {{ metricMap.get(period)?.risk_source ?? '来源未知' }} · 覆盖
                       {{ metricMap.get(period)?.risk_coverage }}/3
+                      <span v-if="metricMap.get(period)?.risk_reason"
+                        >· {{ metricMap.get(period)?.risk_reason }}</span
+                      >
                       <span v-if="metricMap.get(period)?.risk_stale">· 待更新</span>
                     </template>
-                    <template v-else>风险指标待采集 · 覆盖 0/3</template>
+                    <template v-else
+                      >{{ metricMap.get(period)?.risk_reason ?? '风险指标待采集' }} · 覆盖
+                      0/3</template
+                    >
                   </small>
                 </td>
                 <td class="ta-r num" :class="rowTone(metricMap.get(period)?.return_rate)">
@@ -349,6 +421,7 @@ useSeoMeta({
             <h2 class="block__title">前十大重仓股</h2>
             <p class="block__sub">
               {{ holdings?.quarter }} 季报披露 · 前十合计占净值 {{ totalRatioText }}
+              <span> · 股票行情来自腾讯证券，按分钟更新（北京时间），不是基金实时收益。</span>
             </p>
           </div>
 
@@ -366,12 +439,22 @@ useSeoMeta({
           </div>
         </div>
 
+        <p v-if="quotesError" class="data-warning">
+          股票行情加载失败，季报持仓仍可查看。<button
+            class="data-retry"
+            type="button"
+            @click="refreshQuotes()"
+          >
+            重试
+          </button>
+        </p>
         <div class="table-wrap">
           <table class="data-table">
             <thead>
               <tr>
                 <th>#</th>
                 <th>股票</th>
+                <th class="ta-r">今日涨跌</th>
                 <th class="ta-r">占净值比例</th>
                 <th class="ta-r">持股数（万股）</th>
                 <th class="ta-r">持仓市值（亿元）</th>
@@ -383,6 +466,34 @@ useSeoMeta({
                 <td>
                   <span class="holding__name">{{ h.stock_name ?? '—' }}</span>
                   <span class="mono holding__code">{{ h.stock_code }}</span>
+                </td>
+                <td class="ta-r num">
+                  <span
+                    :class="
+                      quoteMap.get(h.stock_code)?.is_today
+                        ? rowTone(quoteMap.get(h.stock_code)?.change_pct)
+                        : ''
+                    "
+                    >{{
+                      quoteMap.get(h.stock_code)?.is_today
+                        ? fmtDailyReturn(quoteMap.get(h.stock_code)?.change_pct)
+                        : '—'
+                    }}</span
+                  >
+                  <small class="quote-stamp">
+                    <template v-if="quoteMap.get(h.stock_code)?.quoted_at"
+                      >{{ quoteTime(quoteMap.get(h.stock_code)?.quoted_at)
+                      }}<span v-if="!quoteMap.get(h.stock_code)?.is_today">
+                        · 最近涨跌
+                        {{ fmtDailyReturn(quoteMap.get(h.stock_code)?.change_pct) }}</span
+                      ><span v-if="quoteMap.get(h.stock_code)?.degraded"> · 延迟</span></template
+                    >
+                    <template v-else>{{
+                      quotesPending
+                        ? '加载中…'
+                        : (quoteMap.get(h.stock_code)?.message ?? '暂无行情')
+                    }}</template>
+                  </small>
                 </td>
                 <td class="ta-r num">
                   <span class="holding__ratio-bar">
@@ -804,8 +915,64 @@ useSeoMeta({
 }
 
 @media (max-width: 520px) {
-  .stats {
-    grid-template-columns: 1fr;
+  .range {
+    max-width: 100%;
+    flex-wrap: wrap;
+    border-radius: 12px;
   }
+
+  .head__side {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .head__side > :deep(button) {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .head__nav {
+    width: 100%;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat {
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .stat__head {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+</style>
+
+<style scoped>
+.data-note {
+  margin: 0 0 12px;
+}
+.data-warning {
+  color: #a16207;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.data-retry {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+  font: inherit;
+}
+.quote-stamp {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 </style>

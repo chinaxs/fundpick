@@ -7,7 +7,7 @@ install:        ## 安装依赖（含 dev）
 	uv sync
 
 dev:            ## 启动开发服务器（热重载）
-	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 3
 
 lint:           ## 代码检查
 	uv run ruff check .

@@ -13,7 +13,7 @@
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:admin": "pnpm --filter @project/admin dev",
     "dev:portal": "pnpm --filter @project/portal dev",
-    "dev:api": "cd services/api && uv run uvicorn app.main:app --reload --port 8000",
+    "dev:api": "cd services/api && uv run uvicorn app.main:app --reload --port 8000 --timeout-graceful-shutdown 3",
     "build": "pnpm -r build",
     "build:shared": "pnpm --filter @project/shared build",
     "build:admin": "pnpm --filter @project/admin build",

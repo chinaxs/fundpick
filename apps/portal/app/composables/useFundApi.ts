@@ -3,6 +3,7 @@
  */
 import type { MaybeRef } from 'vue'
 import type {
+  FundHoldingQuotesResult,
   ApiResponse,
   FilterOptions,
   OverviewStats,
@@ -143,5 +144,23 @@ export function useFundHoldings(code: string, quarter: MaybeRef<string | null> =
       return res.data ?? { quarters: [], quarter: null, items: [], total_ratio: null }
     },
     { watch: [() => unref(quarter)] },
+  )
+}
+
+/** Current stock quotes load separately so an upstream outage cannot hide quarterly holdings. */
+export function useFundHoldingQuotes(code: string, quarter: MaybeRef<string | null> = null) {
+  return useAsyncData<FundHoldingQuotesResult>(
+    `fund-holding-quotes-${code}`,
+    async () => {
+      const res = await $fetch<ApiResponse<FundHoldingQuotesResult>>(
+        `/portal/funds/${code}/holdings/quotes`,
+        {
+          baseURL: useApiBase(),
+          query: { quarter: unref(quarter) ?? undefined },
+        },
+      )
+      return res.data ?? { items: [], fetched_at: '' }
+    },
+    { server: false, lazy: true, watch: [() => unref(quarter)] },
   )
 }
