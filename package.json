@@ -1,0 +1,74 @@
+{
+  "name": "project-study",
+  "version": "0.1.0",
+  "private": true,
+  "description": "拾贝 FundPick：开源基金模拟交易、基金持仓管理、投资记账、基金筛选与收益分析工具。Open-source fund paper trading and portfolio tracker.",
+  "packageManager": "pnpm@9.9.0",
+  "engines": {
+    "node": "^22.21.0 || >=24.12.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "predev": "pnpm --filter @project/shared build",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:admin": "pnpm --filter @project/admin dev",
+    "dev:portal": "pnpm --filter @project/portal dev",
+    "dev:api": "cd services/api && uv run uvicorn app.main:app --reload --port 8000",
+    "build": "pnpm -r build",
+    "build:shared": "pnpm --filter @project/shared build",
+    "build:admin": "pnpm --filter @project/admin build",
+    "build:portal": "pnpm --filter @project/portal build",
+    "type-check": "pnpm -r --if-present type-check",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "format": "prettier --write \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,vue,js,json,md,yml,yaml,css,scss}\"",
+    "prepare": "husky",
+    "setup:dev": "node scripts/setup-dev.mjs"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "3.9.6"
+  },
+  "lint-staged": {
+    "apps/admin/**/*.{ts,vue}": [
+      "prettier --write"
+    ],
+    "apps/portal/**/*.{ts,vue}": [
+      "prettier --write"
+    ],
+    "packages/**/*.ts": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "基金",
+    "模拟交易",
+    "基金模拟交易",
+    "持仓管理",
+    "投资记账",
+    "基金筛选",
+    "fund",
+    "paper-trading",
+    "portfolio-tracker",
+    "personal-finance",
+    "nuxt",
+    "vue",
+    "fastapi"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chinaxs/fundpick.git"
+  },
+  "homepage": "https://github.com/chinaxs/fundpick#readme",
+  "bugs": {
+    "url": "https://github.com/chinaxs/fundpick/issues"
+  }
+}

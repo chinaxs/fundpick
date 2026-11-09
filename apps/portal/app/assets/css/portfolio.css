@@ -1,0 +1,427 @@
+.trading {
+  padding: 32px 0 48px;
+  background: var(--bg-soft);
+}
+:where(.trading, .trade-flow) .p-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+:where(.trading, .trade-flow) h1 {
+  margin: 0;
+  font-size: 28px;
+}
+:where(.trading, .trade-flow) h2 {
+  margin: 0;
+  font-size: 16px;
+}
+:where(.trading, .trade-flow) .p-note {
+  margin: 8px 0 16px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+:where(.trading, .trade-flow) .p-card {
+  padding: 20px;
+  margin-bottom: 18px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+:where(.trading, .trade-flow) .p-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+:where(.trading, .trade-flow) .btn {
+  min-height: 38px;
+  height: auto;
+  padding: 9px 16px;
+  font-size: 13px;
+}
+:where(.trading, .trade-flow) button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+:where(.trading, .trade-flow) .p-link {
+  padding: 3px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--brand);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+:where(.trading, .trade-flow) .p-error,
+:where(.trading, .trade-flow) .p-notice,
+:where(.trading, .trade-flow) .p-success {
+  padding: 14px 18px;
+  margin: 0 0 18px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+:where(.trading, .trade-flow) .p-notice p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+:where(.trading, .trade-flow) .p-error {
+  color: var(--up);
+  background: var(--up-soft);
+}
+:where(.trading, .trade-flow) .p-success {
+  color: var(--down);
+  background: var(--down-soft);
+}
+.trading .portfolio-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.trading .portfolio-metrics .p-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.trading .portfolio-metrics span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.trading .portfolio-metrics strong {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+:where(.trading, .trade-flow) small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.7;
+}
+.trading .p-tabs {
+  display: flex;
+  gap: 6px;
+}
+.trading .p-tabs button,
+.trading .p-pager button {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.trading .p-tabs button[aria-pressed='true'] {
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+.trading .p-table-wrap {
+  overflow-x: auto;
+}
+.trading .data-table {
+  min-width: 760px;
+  font-size: 12px;
+}
+.trading .data-table td {
+  min-width: 90px;
+}
+.trading .data-table td:first-child {
+  min-width: 160px;
+}
+.trading .data-table a:hover {
+  color: var(--brand);
+}
+.trading .trade-voided {
+  opacity: 0.6;
+  background: var(--bg-soft);
+}
+.trading .p-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 18px;
+  font-size: 12px;
+}
+.trading .p-empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.trading .p-empty h3 {
+  color: var(--ink);
+  font-size: 16px;
+}
+.trading .legacy-review {
+  border-color: var(--brand);
+}
+.trading .legacy-review__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.trading .legacy-review__row strong {
+  font-size: 13px;
+}
+.trade-flow .trade-steps {
+  display: flex;
+  gap: 14px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.trade-flow .trade-steps .active {
+  color: var(--brand);
+  font-weight: 600;
+}
+.trade-flow .trade-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.trade-flow .trade-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.trade-flow .trade-fields__wide {
+  grid-column: 1 / -1;
+}
+.trade-flow .p-actions {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.trade-flow .trade-preview h3 {
+  font-size: 16px;
+  color: var(--ink);
+}
+.trade-flow .p-detail {
+  margin: 18px 0;
+}
+.trade-flow .p-detail > div {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.trade-flow dt {
+  color: var(--muted);
+}
+.trade-flow dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+:where(.trading, .trade-flow) :focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+@media (max-width: 1024px) {
+  .trading .portfolio-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 768px) {
+  .trading .portfolio-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trading h1 {
+    font-size: 24px;
+  }
+  .trading .p-card {
+    padding: 16px;
+  }
+  .trade-flow .trade-fields {
+    grid-template-columns: 1fr;
+  }
+  .trading .portfolio-metrics strong {
+    font-size: 21px;
+  }
+}
+.trading .holding-cards {
+  display: none;
+}
+@media (max-width: 768px) {
+  .trading .holdings-desktop {
+    display: none;
+  }
+  .trading .holding-cards {
+    display: grid;
+    gap: 12px;
+  }
+  .trading .holding-card {
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .trading .holding-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .trading .holding-card dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .trading .holding-card dd {
+    margin: 3px 0 0;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+  }
+  .trading .holding-card .p-actions {
+    justify-content: flex-end;
+  }
+}
+
+.trading .metrics-head {
+  margin-bottom: 8px;
+}
+.trading .metrics-detail {
+  margin: -2px 0 24px;
+}
+.trading .metrics-detail > summary,
+.trading .legacy-fold > summary {
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.trading .metrics-detail__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.trading .portfolio-tabs {
+  margin: 0 0 14px;
+}
+.trading .legacy-fold {
+  margin: 12px 0 20px;
+}
+.trading .legacy-fold > summary {
+  color: var(--brand);
+}
+.trade-flow .trade-fund {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.trade-flow .trade-fund > .num {
+  font-size: 12px;
+  color: var(--muted);
+}
+.trade-flow .trade-options > summary {
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 4px 0;
+}
+.trade-flow .trade-options > summary > span {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.trade-flow .trade-options > .trade-fields {
+  margin-top: 12px;
+}
+.trade-flow .trade-footnote {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+@media (max-width: 768px) {
+  .trading .portfolio-metrics .p-card:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.trading .portfolio-help > summary {
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.trading .portfolio-more {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.trading .portfolio-more a:hover {
+  color: var(--brand);
+}
+.trade-flow .timing-result {
+  padding: 10px 12px;
+  font-size: 12px;
+  background: var(--brand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+}
+.trade-flow .simple-timing {
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.trade-flow .receipt-link {
+  padding: 4px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--brand);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.trade-flow .receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.trade-flow .receipt-fields > .p-note {
+  margin-top: 0;
+}
+.trade-flow .receipt-adjustments {
+  margin-top: 12px;
+}
+.trade-flow .receipt-adjustment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.trade-flow .receipt-adjustment input {
+  width: 16px;
+  height: 16px;
+}

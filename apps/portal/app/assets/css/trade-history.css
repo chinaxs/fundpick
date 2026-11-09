@@ -1,0 +1,80 @@
+.trading .history-card {
+  --el-color-primary: var(--brand);
+  --el-border-radius-base: 8px;
+}
+.trading .history-card .p-head {
+  margin-bottom: 0;
+}
+.trading .history-card .data-table {
+  min-width: 900px;
+}
+.trading .history-card .data-table th {
+  font-size: 11px;
+}
+.trading .history-card .data-table td {
+  vertical-align: top;
+}
+.trading .history-card .data-table td:last-child {
+  min-width: 95px;
+}
+.trading .history-card .history-fund {
+  min-width: 180px;
+  max-width: 240px;
+}
+.trading .history-results {
+  min-height: 130px;
+}
+.trading .history-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+.trading .history-card .el-button.is-link {
+  margin: 0;
+}
+.trading .history-card .trade-voided {
+  opacity: 0.7;
+}
+.trading .applications .p-actions {
+  flex: 0 0 auto;
+}
+@media (max-width: 768px) {
+  .trading .history-pagination {
+    justify-content: center;
+    gap: 12px 8px;
+  }
+  .trading .history-pagination .el-pagination__jump {
+    display: none;
+  }
+  .trading .history-pagination .el-pagination__sizes {
+    margin: 0;
+  }
+  .trading .history-pagination .el-pager li {
+    min-width: 26px;
+    margin: 0 2px;
+  }
+  .trading .history-pagination .el-pagination__total {
+    margin: 0;
+  }
+  .trading .history-pagination .btn-prev,
+  .trading .history-pagination .btn-next {
+    margin: 0;
+  }
+}
+@media (max-width: 768px) {
+  .trading .history-card .data-table th:last-child,
+  .trading .history-card .data-table td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    min-width: 90px;
+    background: var(--bg);
+    border-left: 1px solid var(--line);
+  }
+  .trading .history-card .data-table th:last-child {
+    z-index: 3;
+    background: var(--bg-soft);
+  }
+}

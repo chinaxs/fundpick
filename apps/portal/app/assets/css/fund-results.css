@@ -1,0 +1,224 @@
+/* ---------------- 表格 ---------------- */
+.table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.fund-table {
+  min-width: 940px;
+}
+
+.col-fav {
+  width: 40px;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+.col-rank {
+  width: 52px;
+  color: var(--muted-2);
+}
+
+.col-name {
+  min-width: 230px;
+}
+
+.col-company {
+  min-width: 160px;
+}
+
+.ta-r {
+  text-align: right;
+}
+
+.fund {
+  display: block;
+}
+
+.fund__name {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.fund__name:hover {
+  color: var(--brand);
+}
+
+.fund__code {
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+
+.fund__meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.fund__sector {
+  padding: 1px 6px;
+  font-size: 10.5px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 4px;
+}
+
+.fund__sector--none {
+  color: var(--muted-2);
+  background: var(--bg-soft);
+}
+
+.ret {
+  display: inline-block;
+  min-width: 68px;
+  padding: 2px 8px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.ret.up {
+  color: var(--up);
+  background: var(--up-soft);
+}
+
+.ret.down {
+  color: var(--down);
+  background: var(--down-soft);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---------------- 类型 + 风险 ---------------- */
+.col-type {
+  min-width: 110px;
+}
+
+.risk {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.risk__dot {
+  width: 6px;
+  height: 6px;
+  background: var(--muted-2);
+  border-radius: 50%;
+}
+
+.risk--low .risk__dot {
+  background: #059669;
+}
+
+.risk--mid_low .risk__dot {
+  background: #0891b2;
+}
+
+.risk--mid .risk__dot {
+  background: #d97706;
+}
+
+.risk--mid_high .risk__dot {
+  background: #ea580c;
+}
+
+.risk--high .risk__dot {
+  background: #dc2626;
+}
+
+.risk--low {
+  color: #059669;
+}
+
+.risk--mid_low {
+  color: #0891b2;
+}
+
+.risk--mid {
+  color: #b45309;
+}
+
+.risk--mid_high {
+  color: #c2410c;
+}
+
+.risk--high {
+  color: #dc2626;
+}
+
+.risk--unknown {
+  color: var(--muted-2);
+}
+
+.company {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.manager {
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.sort-button {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.sort-button--active {
+  color: var(--brand);
+  font-weight: 600;
+}
+.nav-date {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.table-wrap:focus-visible,
+.sort-button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+@media (max-width: 768px) {
+  .fund-table {
+    min-width: 900px;
+  }
+  .col-name {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--bg);
+    min-width: 180px;
+    max-width: 200px;
+    border-right: 1px solid var(--line);
+  }
+  th.col-name {
+    z-index: 3;
+    background: var(--bg-soft);
+  }
+}
+.fund__action {
+  margin-top: 6px;
+}
