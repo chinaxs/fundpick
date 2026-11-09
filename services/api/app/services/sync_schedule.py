@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
@@ -28,11 +29,25 @@ from app.schemas.sync_job import (
     SyncTriggerRequest,
 )
 from app.services.sync_job import SyncJobService
+from app.trading_calendar import SHANGHAI, trading_day_or_none
 
 logger = get_logger(__name__)
 
 # 任务因"已有任务在跑"被顺延后，允许在计划时间后多久内补跑
 CATCH_UP_HOURS = 6
+
+# Staggered publication checks plus next-morning catch-up, all Beijing time.
+RECOMMENDED_SCHEDULES = (
+    ("quick", 8, 30),
+    ("snapshot", 9, 0),
+    ("tracked", 9, 15),
+    ("snapshot", 18, 30),
+    ("tracked", 18, 45),
+    ("snapshot", 21, 0),
+    ("tracked", 21, 15),
+    ("snapshot", 23, 0),
+    ("tracked", 23, 15),
+)
 
 
 class SyncScheduleService:
@@ -57,6 +72,25 @@ class SyncScheduleService:
         await self.session.commit()
         await self.session.refresh(schedule)
         return SyncScheduleRead.model_validate(schedule)
+
+    async def install_recommended(self) -> builtins.list[SyncScheduleRead]:
+        from app.models.sync_job import SyncJobMutex
+
+        await self.session.execute(
+            select(SyncJobMutex.id).where(SyncJobMutex.id == 1).with_for_update()
+        )
+        existing = list((await self.session.scalars(select(SyncSchedule))).all())
+        for mode, hour, minute in RECOMMENDED_SCHEDULES:
+            if not any(
+                row.mode == mode and row.hour == hour and row.minute == minute for row in existing
+            ):
+                self.session.add(
+                    SyncSchedule(
+                        mode=mode, hour=hour, minute=minute, weekdays="1,2,3,4,5", enabled=True
+                    )
+                )
+        await self.session.commit()
+        return await self.list()
 
     async def update(self, schedule_id: int, payload: SyncScheduleUpdate) -> SyncScheduleRead:
         schedule = await self.session.get(SyncSchedule, schedule_id)
@@ -87,6 +121,8 @@ def is_due(schedule: SyncSchedule, now: datetime) -> bool:
     """今天是否该跑：星期匹配、已过计划时间、未超补跑窗口、今天没跑过。"""
     if not schedule.enabled:
         return False
+    if schedule.mode != "news" and trading_day_or_none(now.date()) is not True:
+        return False
     if schedule.weekdays:
         weekdays = {int(day) for day in schedule.weekdays.split(",") if day}
         if now.isoweekday() not in weekdays:
@@ -101,7 +137,9 @@ def is_due(schedule: SyncSchedule, now: datetime) -> bool:
 
 async def tick(now: datetime | None = None) -> list[SyncJobRead]:
     """跑一轮检查，返回本轮启动的任务（便于测试与日志）。"""
-    now = now or datetime.now()
+    now = now or datetime.now(SHANGHAI).replace(tzinfo=None)
+    if now.tzinfo is not None:
+        now = now.astimezone(SHANGHAI).replace(tzinfo=None)
     started: list[SyncJobRead] = []
     async with async_session_factory() as session:
         schedule_ids = list(

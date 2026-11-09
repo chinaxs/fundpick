@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import date, timedelta
 from typing import Any
 
@@ -10,7 +9,6 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.datasources import get_provider
 from app.fund_sectors import SECTOR_LABELS, SECTOR_ORDER
 from app.fund_share_class import split_share_class
 from app.models.fund import Fund, FundType, RiskLevel
@@ -256,8 +254,59 @@ class FundService:
         return FundCompareResult(items=items)
 
     async def metrics(self, code: str) -> list[MetricRead]:
+        from app.models.fund_metric import FundMetric
+        from app.services.fund_risk import PERIOD_DAYS, SOURCE, calculate_risk
+
         fund = await self._require_fund(code)
         rows = await self.funds.metrics(fund.id)
+        points = await self.funds.navs(fund.id, NAV_MAX_FETCH)
+        by_period = {row.period: row for row in rows}
+        reasons = {}
+        written = False
+        for period in PERIOD_DAYS:
+            calculated, reason = calculate_risk(points, period, fund.inception_date)
+            reasons[period] = reason
+            stored = by_period.get(period)
+            complete = stored is not None and all(
+                value is not None
+                for value in (stored.max_drawdown, stored.volatility, stored.sharpe)
+            )
+            if complete and stored is not None and stored.risk_source != SOURCE:
+                reasons[period] = None
+                continue
+            if calculated is None:
+                continue
+            baseline = points[-1].nav_date
+            if (
+                stored is not None
+                and stored.risk_source == SOURCE
+                and stored.risk_nav_date == baseline
+            ):
+                continue
+            statement = insert(FundMetric).values(
+                fund_id=fund.id,
+                period=period,
+                risk_nav_date=baseline,
+                risk_source=SOURCE,
+                **calculated,
+            )
+            await self.session.execute(
+                statement.on_duplicate_key_update(
+                    risk_nav_date=baseline,
+                    risk_source=SOURCE,
+                    **calculated,
+                )
+            )
+            written = True
+        if written:
+            await self.session.commit()
+            self.session.expire_all()
+            fund = await self._require_fund(code)
+            rows = await self.funds.metrics(fund.id)
+        by_period = {row.period: row for row in rows}
+        for period in PERIOD_DAYS:
+            if period not in by_period:
+                rows.append(FundMetric(fund_id=fund.id, period=period))
         return [
             MetricRead(
                 period=m.period,
@@ -268,14 +317,15 @@ class FundService:
                 sharpe=m.sharpe,
                 risk_nav_date=m.risk_nav_date,
                 risk_source=m.risk_source,
+                risk_reason=reasons.get(m.period)
+                if not all(value is not None for value in (m.max_drawdown, m.volatility, m.sharpe))
+                else None,
                 risk_coverage=sum(
                     value is not None for value in (m.max_drawdown, m.volatility, m.sharpe)
                 ),
-                risk_stale=(
-                    m.risk_nav_date is None
-                    or fund.latest_nav_date is None
-                    or m.risk_nav_date != fund.latest_nav_date
-                ),
+                risk_stale=m.risk_nav_date is None
+                or fund.latest_nav_date is None
+                or m.risk_nav_date != fund.latest_nav_date,
                 rank=m.rank,
                 total=m.total,
             )
@@ -285,42 +335,29 @@ class FundService:
     async def ensure_navs(
         self, code: str, period: NavRange = NavRange.Y1, limit: int = 2000
     ) -> list[NavPointRead]:
-        """取净值序列；本地没有就实时回填一次。
+        """Refresh even when a local series exists; failures retain dated cached values."""
+        from app.services.fund_data import refresh_data
 
-        全市场 1 万只 × 数千条 ≈ 千万级行，全量预拉不划算（数小时），
-        而详情页是"按需访问"，第一次访问时补这一只最经济。
-        """
         fund = await self._require_fund(code)
-        start = _nav_start_date(period)
-        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=start)
-        if rows:
-            return _downsample(self._to_nav_reads(rows), limit)
-
-        points = await asyncio.to_thread(get_provider().nav_history, code)
-        if not points:
-            return []
-
-        payload = [
-            {
-                "fund_id": fund.id,
-                "nav_date": p.nav_date,
-                "unit_nav": p.unit_nav,
-                "daily_return": p.daily_return,
-            }
-            for p in points
-        ]
-        # 分批 upsert，单只基金的净值可能有几千条
-        for i in range(0, len(payload), 500):
-            batch = payload[i : i + 500]
-            stmt = insert(FundNav).values(batch)
-            stmt = stmt.on_duplicate_key_update(
-                unit_nav=stmt.inserted.unit_nav,
-                daily_return=stmt.inserted.daily_return,
-            )
-            await self.session.execute(stmt)
-        await self.session.commit()
-
-        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=start)
+        await refresh_data(self.session, fund, "navs")
+        # A newer official snapshot remains useful when the history source is delayed.
+        # Do not infer its daily return from unit NAV (cash dividends can change it).
+        if fund.latest_nav_date and fund.latest_nav and fund.latest_nav > 0:
+            latest = await self.funds.navs(fund.id, 1)
+            if not latest or latest[-1].nav_date < fund.latest_nav_date:
+                statement = insert(FundNav).values(
+                    fund_id=fund.id,
+                    nav_date=fund.latest_nav_date,
+                    unit_nav=fund.latest_nav,
+                    daily_return=None,
+                )
+                await self.session.execute(
+                    statement.on_duplicate_key_update(
+                        unit_nav=statement.inserted.unit_nav,
+                    )
+                )
+                await self.session.commit()
+        rows = await self.funds.navs(fund.id, NAV_MAX_FETCH, start_date=_nav_start_date(period))
         return _downsample(self._to_nav_reads(rows), limit)
 
     @staticmethod
@@ -332,52 +369,16 @@ class FundService:
 
     # ---------------------------------------------------------- 持仓
     async def holdings(self, code: str, quarter: str | None = None) -> HoldingsResult:
-        """季度重仓股；本地没有时实时回填一次（与净值的策略一致）。
+        """季度重仓股按需复查，已有季度也会更新；上游失败保留已披露数据。
 
         持仓是季报数据（一个季度约 4 万行全市场），预拉不划算，
         按需补齐最经济。
         """
-        from datetime import datetime
-
-        from app.models.fund_holding import FundHolding
+        from app.services.fund_data import refresh_data
 
         fund = await self._require_fund(code)
+        await refresh_data(self.session, fund, "holdings")
         quarters = await self.funds.holding_quarters(fund.id)
-        if not quarters:
-            # 本地无数据：拉当年披露（跨年时再补上一年）
-            years = {str(datetime.now().year), str(datetime.now().year - 1)}
-            for year in sorted(years, reverse=True):
-                try:
-                    provider_rows = await asyncio.to_thread(
-                        get_provider().fund_holdings, code, year
-                    )
-                except Exception:
-                    continue
-                if provider_rows:
-                    payload = [
-                        {
-                            "fund_id": fund.id,
-                            "quarter": h.quarter,
-                            "stock_code": h.stock_code,
-                            "stock_name": h.stock_name,
-                            "rank": h.rank or None,
-                            "ratio": h.ratio,
-                            "shares": h.shares,
-                            "market_value": h.market_value,
-                        }
-                        for h in provider_rows
-                    ]
-                    stmt = insert(FundHolding).values(payload)
-                    stmt = stmt.on_duplicate_key_update(
-                        stock_name=stmt.inserted.stock_name,
-                        rank=stmt.inserted.rank,
-                        ratio=stmt.inserted.ratio,
-                        shares=stmt.inserted.shares,
-                        market_value=stmt.inserted.market_value,
-                    )
-                    await self.session.execute(stmt)
-                    await self.session.commit()
-            quarters = await self.funds.holding_quarters(fund.id)
 
         target = quarter if quarter in quarters else (quarters[0] if quarters else None)
         if target is None:

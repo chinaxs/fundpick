@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     # 由进程内的轻量调度器按 sync_schedules 表触发；多实例部署时靠数据库互斥去重
     SYNC_SCHEDULER_ENABLED: bool = True
     SYNC_SCHEDULER_INTERVAL_SECONDS: int = 60
+    AUTO_RECONCILE_ENABLED: bool = True
+    AUTO_RECONCILE_INTERVAL_SECONDS: int = 60
     # 日志同时写文件，便于采集/审计留档（相对 services/api）
     LOG_FILE_ENABLED: bool = True
 

@@ -19,6 +19,7 @@ from app.schemas.admin import (
     TableStat,
     TypeCount,
 )
+from app.services.data_freshness import freshness
 from app.services.fund import TYPE_LABELS
 
 # 覆盖率展示顺序与文案
@@ -55,6 +56,7 @@ class AdminStatsService:
 
         _, latest_nav_date = await self.stats.nav_stats()
         lag = (date.today() - latest_nav_date).days if latest_nav_date else None
+        freshness_data = freshness(latest_nav_date)
 
         user_total, user_staff, user_new_7d = await self.stats.user_counts()
         article_total, article_published = await self.stats.article_counts()
@@ -68,6 +70,10 @@ class AdminStatsService:
             managers_total=await self.stats.manager_total(),
             nav_latest_date=latest_nav_date,
             nav_date_lag_days=lag,
+            expected_nav_date=freshness_data["expected_nav_date"],
+            nav_lag_trading_days=freshness_data["nav_lag_trading_days"],
+            freshness_state=freshness_data["freshness_state"],
+            freshness_message=freshness_data["freshness_message"],
             coverage=coverage,
             user_total=user_total,
             user_staff=user_staff,

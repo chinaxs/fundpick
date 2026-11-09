@@ -1,7 +1,7 @@
 """两项输入自动查净值和费用；缺数据保持待处理，计算结果保留估算来源。"""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -178,6 +178,8 @@ class AutomaticTradeService:
 
     async def pending(self, application, fund, message):
         application.processing_message = message[:500]
+        application.last_attempt_at = datetime.now(SHANGHAI).replace(tzinfo=None)
+        application.next_retry_at = application.last_attempt_at + timedelta(minutes=5)
         await self.session.commit()
         return AutoTradeRead(
             status="pending",
@@ -194,17 +196,7 @@ class AutomaticTradeService:
 
 
 async def reconcile_after_sync(limit: int = 50):
-    """既有采集任务更新净值后补齐待处理记录，不新增隐式调度器。"""
-    from app.core.logging import get_logger
-    from app.db.session import async_session_factory
+    """Use the same fair, durable retry queue after fresh NAVs are collected."""
+    from app.services.automatic_reconcile import reconcile_due
 
-    logger = get_logger(__name__)
-    async with async_session_factory() as session:
-        members = await TransactionRepository(session).automatic_pending_members(limit)
-    for user_id in members:
-        async with async_session_factory() as session:
-            try:
-                await AutomaticTradeService(session).refresh_pending(user_id)
-            except Exception as exc:
-                await session.rollback()
-                logger.warning("自动记账补齐失败 user_id=%s error=%s", user_id, type(exc).__name__)
+    return await reconcile_due(limit)

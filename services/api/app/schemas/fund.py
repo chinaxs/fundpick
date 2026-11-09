@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -92,6 +92,7 @@ class MetricRead(BaseModel):
     sharpe: float | None = None
     risk_nav_date: date | None = None
     risk_source: str | None = None
+    risk_reason: str | None = None
     risk_coverage: int = 0
     risk_stale: bool = True
     rank: int | None = None
@@ -143,6 +144,22 @@ class HoldingsResult(BaseModel):
     quarter: str | None = Field(default=None, description="当前返回的季度")
     items: list[HoldingRead] = Field(default_factory=list)
     total_ratio: float | None = Field(default=None, description="前十大合计占净值比例（%）")
+
+
+class HoldingQuoteRead(BaseModel):
+    stock_code: str
+    price: float | None = None
+    change_pct: float | None = None
+    quoted_at: datetime | None = None
+    is_today: bool = False
+    degraded: bool = False
+    source: str | None = None
+    message: str | None = None
+
+
+class HoldingQuotesResult(BaseModel):
+    items: list[HoldingQuoteRead] = Field(default_factory=list)
+    fetched_at: datetime
 
 
 class FilterOption(BaseModel):

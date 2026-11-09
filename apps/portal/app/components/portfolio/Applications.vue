@@ -2,6 +2,16 @@
 import type { ApplicationRead, TradeSeed } from '@project/shared'
 defineProps<{ items: ApplicationRead[]; busy: boolean }>()
 const emit = defineEmits<{ record: [seed: TradeSeed]; cancel: [id: number] }>()
+function timeLabel(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
+}
 function record(item: ApplicationRead) {
   emit('record', {
     kind: item.kind,
@@ -20,7 +30,9 @@ function record(item: ApplicationRead) {
 <template>
   <section v-if="items.length" class="p-card applications">
     <h2>待入账 · {{ items.length }} 笔</h2>
-    <p class="p-note">净值和费用齐全后自动入账，无需补充成交结果。</p>
+    <p class="p-note">
+      到确认日且净值、费用齐全后，后台自动入账；无需保持页面打开。暂缺信息会定期重试。
+    </p>
     <article v-for="item in items" :key="item.id" class="legacy-review__row">
       <div>
         <div style="padding: 0">
@@ -36,7 +48,15 @@ function record(item: ApplicationRead) {
           {{ item.amount ? `金额 ¥ ${item.amount}` : `份额 ${item.shares}` }}
         </p>
       </div>
-      <p v-if="item.processing_message" class="p-note">{{ item.processing_message }}</p>
+      <p v-if="item.processing_message" class="p-note">
+        {{ item.processing_message
+        }}<small v-if="item.last_attempt_at"
+          >最近核对 {{ timeLabel(item.last_attempt_at)
+          }}<template v-if="item.next_retry_at">
+            · 下次检查 {{ timeLabel(item.next_retry_at) }}</template
+          ></small
+        >
+      </p>
       <div class="p-actions">
         <button type="button" class="p-link" :disabled="busy" @click="emit('cancel', item.id)">
           撤销记录</button

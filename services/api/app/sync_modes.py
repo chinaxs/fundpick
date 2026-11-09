@@ -3,6 +3,7 @@
 SYNC_MODES: tuple[str, ...] = (
     "quick",
     "snapshot",
+    "tracked",
     "risk",
     "risk-level",
     "sector",
@@ -17,7 +18,8 @@ SYNC_MODES: tuple[str, ...] = (
 
 SYNC_MODE_LABELS: dict[str, str] = {
     "quick": "基础数据 / 最新净值",
-    "snapshot": "指定基金净值与区间收益",
+    "snapshot": "净值与区间收益",
+    "tracked": "持仓、关注与待入账基金更新",
     "risk": "风险指标（回撤·夏普·波动）",
     "risk-level": "风险等级推导",
     "sector": "主题板块推导",

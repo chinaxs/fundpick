@@ -83,8 +83,9 @@ defineExpose({ refresh: () => fetchReport(true) })
       <div>
         <h3 class="section-title">数据质量</h3>
         <p v-if="report" class="hint">
-          检查日期 {{ report.checked_on }}；净值自然日龄超过
-          {{ report.nav_stale_after_days }} 天视为滞后。
+          检查日期 {{ report.checked_on }} · 应披露基准
+          {{ report.expected_nav_date ?? '日历未知' }}。
+          {{ report.freshness_note }}
         </p>
       </div>
       <div class="actions">

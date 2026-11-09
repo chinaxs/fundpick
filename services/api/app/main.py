@@ -46,17 +46,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning("数据库连接失败：%s", exc)
 
     scheduler_task: asyncio.Task[None] | None = None
+    reconciliation_task: asyncio.Task[None] | None = None
     if settings.SYNC_SCHEDULER_ENABLED:
         from app.services.sync_schedule import run_scheduler
 
         scheduler_task = asyncio.create_task(
             run_scheduler(settings.SYNC_SCHEDULER_INTERVAL_SECONDS)
         )
+    if settings.AUTO_RECONCILE_ENABLED:
+        from app.services.automatic_reconcile import run_reconciliation_worker
+
+        reconciliation_task = asyncio.create_task(
+            run_reconciliation_worker(settings.AUTO_RECONCILE_INTERVAL_SECONDS)
+        )
     yield
     if scheduler_task is not None:
         scheduler_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await scheduler_task
+    if reconciliation_task is not None:
+        reconciliation_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reconciliation_task
     await dispose_engine()
     logger.info("应用已关闭")
 

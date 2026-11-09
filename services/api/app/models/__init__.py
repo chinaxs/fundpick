@@ -10,6 +10,7 @@ from app.models.audit_log import AuditLog
 from app.models.auth_session import AuthLoginAttempt, AuthSession
 from app.models.fund import Fund, FundStatus, FundType, RiskLevel
 from app.models.fund_company import FundCompany, FundManager
+from app.models.fund_data_check import FundDataCheck
 from app.models.fund_favorite import FundFavorite
 from app.models.fund_fee_schedule import FundFeeSchedule
 from app.models.fund_holding import FundHolding
@@ -40,6 +41,7 @@ __all__ = [
     "FlowKind",
     "Fund",
     "FundCompany",
+    "FundDataCheck",
     "FundFavorite",
     "FundFeeSchedule",
     "FundHolding",

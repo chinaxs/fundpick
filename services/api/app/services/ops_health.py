@@ -106,6 +106,30 @@ class OpsHealthService:
 
     async def alerts(self) -> list[OpsAlert]:
         alerts: list[OpsAlert] = []
+        from app.core.config import settings
+        from app.models.sync_job import SyncSchedule
+
+        schedule_count = await self.session.scalar(
+            select(func.count()).select_from(SyncSchedule).where(SyncSchedule.enabled.is_(True))
+        )
+        if not settings.SYNC_SCHEDULER_ENABLED or not schedule_count:
+            alerts.append(
+                OpsAlert(
+                    level="warning",
+                    category="sync",
+                    title="没有启用的自动同步计划",
+                    detail="同步按钮只执行一次；请开启调度器并在采集监控补齐推荐计划。",
+                )
+            )
+        if not settings.AUTO_RECONCILE_ENABLED:
+            alerts.append(
+                OpsAlert(
+                    level="warning",
+                    category="sync",
+                    title="自动入账后台检查未开启",
+                    detail="请启用AUTO_RECONCILE_ENABLED，申请无需用户保持页面打开即可检查。",
+                )
+            )
 
         # 1. 净值数据滞后
         latest_nav: date | None = (
@@ -121,14 +145,40 @@ class OpsHealthService:
                 )
             )
         else:
-            lag = (date.today() - latest_nav).days
-            if lag > NAV_STALE_DAYS:
+            from app.services.data_freshness import freshness
+
+            status = freshness(latest_nav)
+            if status["freshness_state"] == "lagging":
                 alerts.append(
                     OpsAlert(
                         level="error",
                         category="data",
-                        title=f"净值已滞后 {lag} 天",
+                        title="最新净值未达到应披露基准",
                         detail=f"最新净值日期 {latest_nav.isoformat()}，请检查采集任务与数据源。",
+                    )
+                )
+
+        from app.services.data_freshness import SPECIAL_TYPES, expected_nav_date
+
+        baseline = expected_nav_date()
+        if baseline:
+            behind = await self.session.scalar(
+                select(func.count())
+                .select_from(Fund)
+                .where(
+                    Fund.deleted_at.is_(None),
+                    Fund.status == "open",
+                    Fund.type.not_in(SPECIAL_TYPES),
+                    Fund.latest_nav_date < baseline,
+                )
+            )
+            if behind:
+                alerts.append(
+                    OpsAlert(
+                        level="warning",
+                        category="data",
+                        title=f"{behind}只普通基金净值待更新",
+                        detail=f"未达到披露基准{baseline}，请在数据质量清单核对并补采；最新一只基金日期不能代表全库。",
                     )
                 )
 

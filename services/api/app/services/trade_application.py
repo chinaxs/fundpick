@@ -63,6 +63,7 @@ class ApplicationService:
         if row.status == "recorded":
             raise ConflictError("已入账记录请到交易流水作废")
         row.status = "cancelled"
+        row.next_retry_at = None
         await self.session.commit()
 
     @staticmethod
@@ -78,6 +79,10 @@ class ApplicationService:
             ),
             automatic_processing=row.automatic_processing,
             processing_message=row.processing_message,
+            last_attempt_at=row.last_attempt_at.replace(tzinfo=SHANGHAI)
+            if row.last_attempt_at
+            else None,
+            next_retry_at=row.next_retry_at.replace(tzinfo=SHANGHAI) if row.next_retry_at else None,
             id=row.id,
             code=fund.code,
             name=fund.name,

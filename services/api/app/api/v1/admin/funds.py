@@ -62,21 +62,10 @@ async def sync_status(
 
     每次采集的执行记录见 `sync_jobs` 表（/funds/sync/jobs）。
     """
-    from sqlalchemy import func, select
-
-    from app.models.fund import Fund
-    from app.models.fund_nav import FundNav
-
-    total = (await session.execute(select(func.count()).select_from(Fund))).scalar_one()
-    latest_nav_date = (await session.execute(select(func.max(Fund.latest_nav_date)))).scalar_one()
-    nav_rows = (await session.execute(select(func.count()).select_from(FundNav))).scalar_one()
+    from app.services.data_freshness import sync_status as read_sync_status
 
     return ApiResponse(
-        data={
-            "fund_total": int(total),
-            "nav_rows": int(nav_rows),
-            "latest_nav_date": latest_nav_date.isoformat() if latest_nav_date else None,
-        },
+        data=await read_sync_status(session),
         request_id=request_id,
     )
 
@@ -164,6 +153,19 @@ async def sync_alerts(
 
 
 # ---------------------------------------------------------------- 定时调度
+@router.post(
+    "/sync/schedules/recommended",
+    response_model=ApiResponse[list[SyncScheduleRead]],
+    summary="补齐推荐同步计划",
+)
+async def install_recommended_schedules(
+    session: SessionDep, request_id: RequestIdDep, _: SuperUser
+):
+    return ApiResponse(
+        data=await SyncScheduleService(session).install_recommended(), request_id=request_id
+    )
+
+
 @router.get(
     "/sync/schedules",
     summary="采集定时配置",

@@ -43,6 +43,21 @@ def _isolated_sync_files(monkeypatch, tmp_path, request):
 
 
 @pytest.fixture(autouse=True)
+def _offline_fund_refresh(monkeypatch):
+    """Existing API tests use deterministic stored data; refresh tests supply their own source."""
+    from app.services import fund_data
+
+    class UnavailableProvider:
+        def nav_history(self, code):
+            raise RuntimeError("Network disabled in integration tests")
+
+        def fund_holdings(self, code, year):
+            raise RuntimeError("Network disabled in integration tests")
+
+    monkeypatch.setattr(fund_data, "get_provider", UnavailableProvider)
+
+
+@pytest.fixture(autouse=True)
 async def _reset_engine() -> AsyncIterator[None]:
     """每个用例结束后释放连接池。
 

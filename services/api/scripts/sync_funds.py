@@ -278,8 +278,11 @@ async def sync_snapshots(session: AsyncSession, codes: list[str] | None = None) 
         try:
             rows = await asyncio.to_thread(provider.list_snapshots, category)
             snapshots.extend(rows)
+            if not rows:
+                PROGRESS.fail(category, "上游未返回净值快照")
             logger.info("[排行] %s %d 条", category, len(rows))
         except Exception as exc:  # 单个分类失败不影响整体
+            PROGRESS.fail(category, str(exc))
             logger.warning("[排行] %s 失败：%s", category, exc)
 
     if not snapshots:
@@ -345,10 +348,12 @@ async def sync_risks(
     """风险指标：新增与最新净值基准日不一致的 1y/3y/5y 快照。"""
     stmt = (
         select(Fund.id, Fund.code, Fund.latest_nav_date)
-        .join(FundMetric, FundMetric.fund_id == Fund.id)
+        .outerjoin(
+            FundMetric,
+            (FundMetric.fund_id == Fund.id) & (FundMetric.period == "1y"),
+        )
         .where(
             Fund.deleted_at.is_(None),
-            FundMetric.period == "1y",
             Fund.latest_nav_date.is_not(None),
             FundMetric.risk_nav_date.is_distinct_from(Fund.latest_nav_date),
         )
@@ -851,6 +856,42 @@ async def backfill_pinyin(session: AsyncSession, force: bool = False) -> int:
     return total
 
 
+async def sync_tracked(session: AsyncSession, limit: int | None, codes: list[str] | None) -> int:
+    """Keep members' daily NAV histories and derived risk values fresh, not just rank snapshots."""
+    from app.services.fund import FundService
+    from app.services.tracked_funds import tracked_codes
+
+    selected = codes if codes else await tracked_codes(session, limit)
+    PROGRESS.begin("tracked", len(selected))
+    done = 0
+    for code in selected:
+        PROGRESS.checkpoint()
+        try:
+            service = FundService(session)
+            await service.ensure_navs(code)
+            await service.metrics(code)
+            from app.models.fund_data_check import FundDataCheck
+            from app.services.data_freshness import SPECIAL_TYPES, freshness
+
+            fund = await service.funds.get_by_code(code)
+            check = await session.get(FundDataCheck, (fund.id, "navs"))
+            if check and not check.succeeded:
+                PROGRESS.fail(code, check.message or "净值更新源暂不可用，保留旧数据")
+                continue
+            if (
+                fund.type not in SPECIAL_TYPES
+                and freshness(fund.latest_nav_date)["freshness_state"] == "lagging"
+            ):
+                PROGRESS.fail(code, "上游净值尚未达到应披露基准，将按后续计划继续补采")
+                continue
+            done += 1
+            PROGRESS.advance(ok=1)
+        except Exception as error:
+            await session.rollback()
+            PROGRESS.fail(code, str(error))
+    return done
+
+
 async def run(mode: str, limit: int | None, codes: list[str] | None, force: bool = False) -> None:
     async def step(name: str, factory: Any, *, self_report: bool = False) -> Any:
         """跑一个阶段并上报进度。
@@ -875,6 +916,8 @@ async def run(mode: str, limit: int | None, codes: list[str] | None, force: bool
             await step("snapshot", lambda: sync_snapshots(session))
         if mode == "snapshot":
             await step("snapshot", lambda: sync_snapshots(session, codes))
+        if mode == "tracked":
+            await step("tracked", lambda: sync_tracked(session, limit, codes), self_report=True)
         if mode in {"risk", "all"}:
             await step("risk", lambda: sync_risks(session, limit, codes), self_report=True)
         if mode == "risk-level":
@@ -891,10 +934,10 @@ async def run(mode: str, limit: int | None, codes: list[str] | None, force: bool
             await step("navs", lambda: sync_navs(session, limit, codes), self_report=True)
         if mode in {"holdings", "all"}:
             await step("holdings", lambda: sync_holdings(session, limit, codes), self_report=True)
-    if mode in {"quick", "snapshot", "navs", "all"}:
+    if mode in {"quick", "snapshot", "navs", "tracked", "all"}:
         from app.services.automatic_trade import reconcile_after_sync
 
-        await step("reconcile", reconcile_after_sync)
+        await step("reconcile", reconcile_after_sync, self_report=True)
     PROGRESS.begin("done")
     await dispose_engine()
 
